@@ -5,10 +5,32 @@ from django.db import models
 
 
 class Area(models.Model):
+    """
+    Departamento, unidad o dependencia responsable de uno o más espacios.
+    HU-1: el administrador registra la dependencia y asigna un responsable (jefe).
+    """
+
+    class AreaType(models.TextChoices):
+        DEPARTAMENTO = 'departamento', 'Departamento'
+        UNIDAD = 'unidad', 'Unidad'
+        DEPENDENCIA = 'dependencia', 'Dependencia'
+
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     code = models.SlugField(max_length=32, unique=True)
     name = models.CharField(max_length=128)
     description = models.TextField(blank=True)
+    area_type = models.CharField(
+        max_length=32,
+        choices=AreaType.choices,
+        default=AreaType.DEPARTAMENTO,
+        help_text='Tipo de entidad: departamento, unidad o dependencia.',
+    )
+    # UUID del jefe/responsable — se resuelve consultando el MS Users
+    responsible_user_id = models.UUIDField(
+        null=True,
+        blank=True,
+        help_text='UUID del usuario responsable (jefe) de esta dependencia.',
+    )
     sort_order = models.PositiveIntegerField(default=0)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)

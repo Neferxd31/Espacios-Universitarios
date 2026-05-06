@@ -5,6 +5,7 @@ import RouteGuard from '@/components/RouteGuard'
 const NAV = [
   { href: '/admin/reservas', label: 'Reservas', icon: '📋' },
   { href: '/admin/usuarios', label: 'Usuarios', icon: '👥' },
+  { href: '/admin/departamentos', label: 'Dependencias', icon: '🏢' },
   { href: '/admin/espacios', label: 'Espacios', icon: '🏫' },
   { href: '/admin/horarios', label: 'Horarios', icon: '🕐' },
   { href: '/admin/configuracion', label: 'Configuración', icon: '⚙️' },
