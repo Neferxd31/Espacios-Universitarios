@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect, useCallback } from 'react'
-import { reservationsApi } from '@/lib/apiClient'
+import { reservationsApi, adminUsersApi, spacesApi } from '@/lib/apiClient'
 
 // Configuración visual por estado
 const STATUS_CONFIG = {
@@ -26,7 +26,7 @@ function StatusBadge({ status }) {
 }
 
 // Modal de revisión (aprobar / rechazar)
-function ReviewModal({ reservation, onClose, onDone }) {
+function ReviewModal({ reservation, spaceName, userName, onClose, onDone }) {
   const [action, setAction] = useState('approve')
   const [notes, setNotes] = useState('')
   const [loading, setLoading] = useState(false)
@@ -49,10 +49,13 @@ function ReviewModal({ reservation, onClose, onDone }) {
     <div className="fixed inset-0 z-50 flex items-center justify-center" style={{ background: 'rgba(0,0,0,0.4)' }}>
       <div className="bg-white rounded-2xl shadow-xl w-full max-w-md mx-4 p-6">
         <h2 className="text-lg font-bold text-gray-900 mb-1">Revisar Reserva</h2>
-        <p className="text-sm text-gray-500 mb-4">
-          Espacio: <span className="font-medium text-gray-700">{reservation.space_id}</span>
-          {' · '}
-          {reservation.reservation_date} {reservation.start_hour}:00–{reservation.end_hour}:00
+        <p className="text-sm text-gray-500 mb-1">
+          <span className="font-medium text-gray-700">{userName || 'Usuario'}</span>
+          {' solicita '}
+          <span className="font-medium text-gray-700">{spaceName || 'Espacio'}</span>
+        </p>
+        <p className="text-xs text-gray-400 mb-4">
+          {reservation.reservation_date} · {reservation.start_hour}:00–{reservation.end_hour}:00
         </p>
 
         {/* Acción */}
@@ -124,6 +127,8 @@ export default function AdminReservationsPage() {
   const [statusFilter, setStatusFilter] = useState('Todos')
   const [dateFilter, setDateFilter] = useState('')
   const [reviewing, setReviewing] = useState(null) // reserva en revisión
+  const [usersMap, setUsersMap]   = useState({})   // uuid → { nombre, codigo }
+  const [spacesMap, setSpacesMap] = useState({})   // uuid → { nombre, codigo }
 
   const fetchReservations = useCallback(async () => {
     setLoading(true)
@@ -132,7 +137,43 @@ export default function AdminReservationsPage() {
       const params = {}
       if (dateFilter) params.date = dateFilter
       const data = await reservationsApi.adminList(params)
-      setReservations(Array.isArray(data) ? data : [])
+      const list = Array.isArray(data) ? data : []
+      setReservations(list)
+
+      // Resolver nombres de usuarios y espacios únicos en paralelo
+      const uniqueUserIds  = [...new Set(list.map((r) => r.requester_user_id).filter(Boolean))]
+      const uniqueSpaceIds = [...new Set(list.map((r) => r.space_id).filter(Boolean))]
+
+      const [userResults, spaceResults] = await Promise.all([
+        Promise.allSettled(uniqueUserIds.map((id) => adminUsersApi.get(id).then((u) => ({ id, u })))),
+        Promise.allSettled(uniqueSpaceIds.map((id) => spacesApi.get(id).then((s) => ({ id, s })))),
+      ])
+
+      const newUsersMap = {}
+      userResults.forEach((r) => {
+        if (r.status === 'fulfilled') {
+          const { id, u } = r.value
+          newUsersMap[id] = {
+            name: `${u.first_name ?? ''} ${u.last_name ?? ''}`.trim() || u.username || id,
+            code: u.university_code || '',
+          }
+        }
+      })
+
+      const newSpacesMap = {}
+      spaceResults.forEach((r) => {
+        if (r.status === 'fulfilled') {
+          const { id, s } = r.value
+          newSpacesMap[id] = {
+            name: s.name || id,
+            code: s.code || '',
+            type: s.space_type || '',
+          }
+        }
+      })
+
+      setUsersMap(newUsersMap)
+      setSpacesMap(newSpacesMap)
     } catch (err) {
       setApiError(err.message || 'No se pudo cargar las reservas')
     } finally {
@@ -179,6 +220,8 @@ export default function AdminReservationsPage() {
       {reviewing && (
         <ReviewModal
           reservation={reviewing}
+          userName={usersMap[reviewing.requester_user_id]?.name}
+          spaceName={spacesMap[reviewing.space_id]?.name}
           onClose={() => setReviewing(null)}
           onDone={() => { setReviewing(null); fetchReservations() }}
         />
@@ -277,7 +320,7 @@ export default function AdminReservationsPage() {
             <table className="w-full">
               <thead>
                 <tr style={{ background: '#F9FAFB', borderBottom: '1px solid #F3F4F6' }}>
-                  {['Usuario (ID)', 'Espacio (ID)', 'Fecha', 'Horario', 'Estado', 'Notas', 'Solicitud', 'Acciones'].map((h) => (
+                  {['Usuario', 'Espacio', 'Fecha', 'Horario', 'Estado', 'Notas', 'Solicitud', 'Acciones'].map((h) => (
                     <th
                       key={h}
                       className={`text-left text-xs font-semibold text-gray-500 uppercase tracking-wider px-5 py-4 ${h === 'Acciones' ? 'text-right' : ''}`}
@@ -295,10 +338,38 @@ export default function AdminReservationsPage() {
                     style={{ borderTop: idx > 0 ? '1px solid #F9FAFB' : 'none' }}
                   >
                     <td className="px-5 py-4">
-                      <p className="text-xs font-mono text-gray-500 truncate max-w-32">{r.requester_user_id}</p>
+                      {usersMap[r.requester_user_id] ? (
+                        <>
+                          <p className="text-sm font-semibold text-gray-900 leading-tight">
+                            {usersMap[r.requester_user_id].name}
+                          </p>
+                          {usersMap[r.requester_user_id].code && (
+                            <p className="text-xs font-mono text-gray-400">
+                              {usersMap[r.requester_user_id].code}
+                            </p>
+                          )}
+                        </>
+                      ) : (
+                        <p className="text-xs font-mono text-gray-400 truncate max-w-32">
+                          {r.requester_user_id?.substring(0, 8)}…
+                        </p>
+                      )}
                     </td>
                     <td className="px-5 py-4">
-                      <p className="text-xs font-mono text-gray-500 truncate max-w-32">{r.space_id}</p>
+                      {spacesMap[r.space_id] ? (
+                        <>
+                          <p className="text-sm text-gray-900 font-medium leading-tight">
+                            {spacesMap[r.space_id].name}
+                          </p>
+                          <p className="text-xs font-mono text-gray-400">
+                            {spacesMap[r.space_id].code}
+                          </p>
+                        </>
+                      ) : (
+                        <p className="text-xs font-mono text-gray-400 truncate max-w-32">
+                          {r.space_id?.substring(0, 8)}…
+                        </p>
+                      )}
                     </td>
                     <td className="px-5 py-4">
                       <span className="text-sm text-gray-700">{r.reservation_date}</span>
