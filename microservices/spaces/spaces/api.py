@@ -13,6 +13,7 @@ Endpoints:
   HU-25  DELETE /api/v1/spaces/<uuid>/horarios/<id>/   — Eliminar un horario (admin)
          GET    /api/v1/areas/                         — Listar áreas
          POST   /api/v1/areas/                         — Crear área (admin)
+  HU-2   GET    /api/v1/areas/mis-espacios/            — Espacios de mis dependencias (jefe)
          GET    /api/v1/spaces/resolve/                — Resolver por area_code + code
 """
 
@@ -62,6 +63,67 @@ class AreaListCreateAPIView(APIView):
             return Response({'errors': serializer.errors}, status=400)
         area = serializer.save()
         return Response(AreaSerializer(area).data, status=201)
+
+
+class MisEspaciosAPIView(APIView):
+    """
+    GET /api/v1/areas/mis-espacios/
+    HU-2 — El jefe/responsable de una dependencia consulta los espacios
+    asignados a sus áreas, filtrables por estado y disponibilidad.
+
+    Query params:
+      status    — operational | maintenance | inactive
+      available — true → solo is_active=True y status=operational
+      type      — Aula | Laboratorio | Auditorio | Sala
+      search    — búsqueda por nombre/código
+    """
+
+    def get(self, request):
+        payload, error = get_token_payload(request)
+        if error:
+            return error
+
+        user_id = payload.get('user_id')
+        if not user_id:
+            return Response({'detail': 'Token inválido.'}, status=401)
+
+        # Áreas donde el usuario autenticado es el responsable
+        areas = Area.objects.filter(responsible_user_id=user_id)
+
+        # Espacios de esas áreas
+        qs = (
+            Space.objects
+            .filter(area__in=areas)
+            .select_related('area')
+            .prefetch_related('operating_hours')
+        )
+
+        # Filtro de disponibilidad rápida
+        available = request.query_params.get('available', '').strip().lower()
+        status = request.query_params.get('status', '').strip()
+        space_type = request.query_params.get('type', '').strip()
+        search = request.query_params.get('search', '').strip()
+
+        if available == 'true':
+            qs = qs.filter(is_active=True, status='operational')
+        elif status:
+            qs = qs.filter(status=status)
+
+        if space_type:
+            qs = qs.filter(space_type__iexact=space_type)
+
+        if search:
+            qs = qs.filter(
+                Q(name__icontains=search) |
+                Q(code__icontains=search) |
+                Q(area__name__icontains=search)
+            )
+
+        return Response({
+            'areas': AreaSerializer(areas, many=True).data,
+            'count': qs.count(),
+            'results': SpaceSerializer(qs, many=True).data,
+        })
 
 
 class AreaDetailAPIView(APIView):

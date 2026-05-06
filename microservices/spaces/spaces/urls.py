@@ -3,6 +3,7 @@ from django.urls import path
 from .api import (
     AreaDetailAPIView,
     AreaListCreateAPIView,
+    MisEspaciosAPIView,
     SpaceDetailAPIView,
     SpaceListCreateAPIView,
     SpaceOperatingHourDetailAPIView,
@@ -14,6 +15,7 @@ from .api import (
 urlpatterns = [
     # Dependencias / Áreas — HU-1
     path('areas/', AreaListCreateAPIView.as_view()),
+    path('areas/mis-espacios/', MisEspaciosAPIView.as_view()),  # HU-2 — antes del <uuid>
     path('areas/<uuid:pk>/', AreaDetailAPIView.as_view()),
 
     # Espacios — CRUD (HU-20, 21, 22, 23)

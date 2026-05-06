@@ -118,6 +118,12 @@ export const areasApi = {
 
   delete: (id) =>
     request(`/api/v1/areas/${id}/`, { method: 'DELETE', auth: true }),
+
+  // HU-2 — Espacios de las dependencias donde el usuario es responsable
+  misEspacios: (params = {}) => {
+    const qs = new URLSearchParams(params).toString()
+    return request(`/api/v1/areas/mis-espacios/${qs ? `?${qs}` : ''}`, { auth: true })
+  },
 }
 
 // ---------------------------------------------------------------------------

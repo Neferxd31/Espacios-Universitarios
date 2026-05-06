@@ -17,7 +17,9 @@ export default function Header() {
     ? 'profile'
     : pathname.startsWith('/reservations')
       ? 'reservations'
-      : 'spaces'
+      : pathname.startsWith('/mis-espacios')
+        ? 'mis-espacios'
+        : 'spaces'
 
   useEffect(() => {
     setUser(getUser())
@@ -43,6 +45,7 @@ export default function Header() {
 
   const navLinks = [
     { href: '/spaces', label: 'Espacios', key: 'spaces' },
+    { href: '/mis-espacios', label: 'Mi Dependencia', key: 'mis-espacios' },
     { href: '/reservations', label: 'Mis Reservas', key: 'reservations' },
     { href: '/profile', label: 'Mi Perfil', key: 'profile' },
   ]
