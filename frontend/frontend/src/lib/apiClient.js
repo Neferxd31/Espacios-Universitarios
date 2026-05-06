@@ -118,6 +118,12 @@ export const areasApi = {
 
   delete: (id) =>
     request(`/api/v1/areas/${id}/`, { method: 'DELETE', auth: true }),
+
+  // HU-2 — Espacios de las dependencias donde el usuario es responsable
+  misEspacios: (params = {}) => {
+    const qs = new URLSearchParams(params).toString()
+    return request(`/api/v1/areas/mis-espacios/${qs ? `?${qs}` : ''}`, { auth: true })
+  },
 }
 
 // ---------------------------------------------------------------------------
@@ -174,12 +180,18 @@ export const spacesApi = {
 }
 
 // ---------------------------------------------------------------------------
-// Reservations (HU-06, 07, 08)
+// Reservations (HU-06, 07, 08, HU-3)
 // ---------------------------------------------------------------------------
 export const reservationsApi = {
   list: (params = {}) => {
     const qs = new URLSearchParams(params).toString()
     return request(`/api/v1/reservations/${qs ? `?${qs}` : ''}`, { auth: true })
+  },
+
+  // HU-3 — Admin: listar todas las reservas
+  adminList: (params = {}) => {
+    const qs = new URLSearchParams({ ...params, all: 'true' }).toString()
+    return request(`/api/v1/reservations/?${qs}`, { auth: true })
   },
 
   get: (id) => request(`/api/v1/reservations/${id}/`, { auth: true }),
@@ -191,6 +203,14 @@ export const reservationsApi = {
     request(`/api/v1/reservations/${id}/`, {
       method: 'PATCH',
       body: { status: 'cancelled' },
+      auth: true,
+    }),
+
+  // HU-3 — Admin: aprobar o rechazar una reserva pendiente
+  review: (id, action, notes = '') =>
+    request(`/api/v1/reservations/${id}/review/`, {
+      method: 'PATCH',
+      body: { action, notes },
       auth: true,
     }),
 

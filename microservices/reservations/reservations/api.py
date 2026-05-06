@@ -1,17 +1,23 @@
 import uuid
 
 from django.core.exceptions import ValidationError
+from django.db import transaction
 from django.utils import timezone
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from .auth import get_token_payload
-from .models import Reservation
+from .auth import get_token_payload, require_admin
+from .models import OutboxEvent, Reservation
+from .publisher import publish_reservation_event
 from .serializers import ReservationCreateSerializer
 from .services import UpstreamServiceError, fetch_space_by_area_and_code, fetch_user_by_university_code
 
 
-def _serialize_reservation(r):
+# ---------------------------------------------------------------------------
+# Helper
+# ---------------------------------------------------------------------------
+
+def _serialize_reservation(r: Reservation) -> dict:
     return {
         'id': str(r.id),
         'space_id': str(r.space_id),
@@ -20,15 +26,31 @@ def _serialize_reservation(r):
         'start_hour': r.start_hour,
         'end_hour': r.end_hour,
         'status': r.status,
+        'review_notes': r.review_notes,
+        'reviewed_at': r.reviewed_at.isoformat() if r.reviewed_at else None,
         'created_at': r.created_at.isoformat() if r.created_at else None,
         'cancelled_at': r.cancelled_at.isoformat() if r.cancelled_at else None,
     }
 
 
+def _create_outbox_and_publish(event_type: str, payload: dict) -> None:
+    """Guarda OutboxEvent en DB y publica en RabbitMQ (best-effort)."""
+    OutboxEvent.objects.create(event_type=event_type, payload=payload)
+    publish_reservation_event(event_type, payload)
+
+
+# ---------------------------------------------------------------------------
+# Reservaciones — listar y crear
+# ---------------------------------------------------------------------------
+
 class ReservationListCreateAPIView(APIView):
     """
-    GET  /api/v1/reservations/  — list reservations for authenticated user
-    POST /api/v1/reservations/  — create a reservation
+    GET  /api/v1/reservations/
+      - Usuario normal: sus propias reservas
+      - Admin con ?all=true: todas las reservas del sistema
+
+    POST /api/v1/reservations/
+      Crea una reserva en estado 'pending'. Publica ReservationCreated.
     """
 
     def get(self, request):
@@ -37,22 +59,29 @@ class ReservationListCreateAPIView(APIView):
             return error
 
         user_id = payload.get('user_id')
-        if not user_id:
-            return Response({'detail': 'Token inválido (sin user_id).'}, status=401)
+        role = (payload.get('role') or '').lower()
+        is_admin = role in ('admin', 'administrativo')
 
-        qs = Reservation.objects.filter(
-            requester_user_id=user_id
-        ).order_by('-reservation_date', '-start_hour')
+        # Admin puede ver todas las reservas con ?all=true
+        if is_admin and request.query_params.get('all') == 'true':
+            qs = Reservation.objects.all().order_by('-created_at')
+        else:
+            qs = Reservation.objects.filter(
+                requester_user_id=user_id
+            ).order_by('-reservation_date', '-start_hour')
 
-        # Optional status filter: ?status=confirmed
-        status_filter = request.query_params.get('status')
+        # Filtros opcionales
+        status_filter = request.query_params.get('status', '').strip()
         if status_filter:
             qs = qs.filter(status=status_filter)
+
+        date_filter = request.query_params.get('date', '').strip()
+        if date_filter:
+            qs = qs.filter(reservation_date=date_filter)
 
         return Response([_serialize_reservation(r) for r in qs])
 
     def post(self, request):
-        # Auth: extract user from JWT
         payload, error = get_token_payload(request)
         if error:
             return error
@@ -95,10 +124,22 @@ class ReservationListCreateAPIView(APIView):
             reservation_date=data['reservation_date'],
             start_hour=data['start_hour'],
             end_hour=data['end_hour'],
-            status=Reservation.Status.CONFIRMED,
+            status=Reservation.Status.PENDING,
         )
         try:
-            reservation.save()
+            with transaction.atomic():
+                reservation.save()
+                _create_outbox_and_publish(
+                    OutboxEvent.EventType.RESERVATION_CREATED,
+                    {
+                        'reservation_id': str(reservation.id),
+                        'space_id': str(space_id),
+                        'requester_user_id': str(user_id),
+                        'reservation_date': data['reservation_date'].isoformat(),
+                        'start_hour': data['start_hour'],
+                        'end_hour': data['end_hour'],
+                    },
+                )
         except ValidationError as exc:
             detail = getattr(exc, 'message_dict', None) or list(exc.messages)
             return Response({'detail': detail}, status=400)
@@ -106,11 +147,15 @@ class ReservationListCreateAPIView(APIView):
         return Response(_serialize_reservation(reservation), status=201)
 
 
+# ---------------------------------------------------------------------------
+# Disponibilidad por espacio
+# ---------------------------------------------------------------------------
+
 class SpaceAvailabilityAPIView(APIView):
     """
     GET /api/v1/reservations/by-space/<space_id>/?date=YYYY-MM-DD
-    Returns confirmed reservation time slots for a space on a given date.
-    No auth required — only exposes occupied hours, not user data.
+    Retorna los slots ocupados (pending + confirmed + approved).
+    Sin autenticación requerida — no expone datos de usuario.
     """
 
     def get(self, request, space_id):
@@ -121,21 +166,25 @@ class SpaceAvailabilityAPIView(APIView):
         qs = Reservation.objects.filter(
             space_id=space_id,
             reservation_date=date_str,
-            status=Reservation.Status.CONFIRMED,
+            status__in=Reservation.ACTIVE_STATUSES,
         ).order_by('start_hour')
 
         slots = [
-            {'start_hour': r.start_hour, 'end_hour': r.end_hour}
+            {'start_hour': r.start_hour, 'end_hour': r.end_hour, 'status': r.status}
             for r in qs
         ]
 
         return Response({'date': date_str, 'space_id': str(space_id), 'reserved_slots': slots})
 
 
+# ---------------------------------------------------------------------------
+# Detalle de reserva (usuario)
+# ---------------------------------------------------------------------------
+
 class ReservationDetailAPIView(APIView):
     """
-    GET   /api/v1/reservations/<id>/  — detail
-    PATCH /api/v1/reservations/<id>/  — cancel (status → cancelled)
+    GET   /api/v1/reservations/<id>/  — detalle (solo propietario)
+    PATCH /api/v1/reservations/<id>/  — cancelar (solo si está pending o confirmed/approved)
     """
 
     def get(self, request, pk):
@@ -173,7 +222,94 @@ class ReservationDetailAPIView(APIView):
         r.status = Reservation.Status.CANCELLED
         r.cancelled_at = timezone.now()
         r.cancelled_by_user_id = uuid.UUID(str(payload['user_id']))
-        # skip full_clean to avoid overlap re-validation on cancel
-        super(Reservation, r).save(update_fields=['status', 'cancelled_at', 'cancelled_by_user_id', 'updated_at'])
+        super(Reservation, r).save(
+            update_fields=['status', 'cancelled_at', 'cancelled_by_user_id', 'updated_at']
+        )
+
+        _create_outbox_and_publish(
+            OutboxEvent.EventType.RESERVATION_CANCELLED,
+            {
+                'reservation_id': str(r.id),
+                'space_id': str(r.space_id),
+                'requester_user_id': str(r.requester_user_id),
+                'cancelled_by': str(payload['user_id']),
+            },
+        )
+
+        return Response(_serialize_reservation(r))
+
+
+# ---------------------------------------------------------------------------
+# Revisión de reserva (admin) — HU-3
+# ---------------------------------------------------------------------------
+
+class ReservationReviewAPIView(APIView):
+    """
+    PATCH /api/v1/reservations/<id>/review/
+    Solo admins. Aprueba o rechaza una reserva pendiente.
+
+    Body: { "action": "approve" | "reject", "notes": "..." }
+
+    Al aprobar → status=approved, publica ReservationApproved
+    Al rechazar → status=rejected, publica ReservationRejected
+    """
+
+    def patch(self, request, pk):
+        payload, error = require_admin(request)
+        if error:
+            return error
+
+        try:
+            r = Reservation.objects.get(pk=pk)
+        except Reservation.DoesNotExist:
+            return Response({'detail': 'Reserva no encontrada.'}, status=404)
+
+        if r.status not in (Reservation.Status.PENDING,):
+            return Response(
+                {'detail': f'Solo se pueden revisar reservas pendientes (estado actual: {r.status}).'},
+                status=400,
+            )
+
+        action = request.data.get('action', '').strip().lower()
+        if action not in ('approve', 'reject'):
+            return Response(
+                {'detail': 'El campo "action" debe ser "approve" o "reject".'},
+                status=400,
+            )
+
+        notes = request.data.get('notes', '').strip()
+        admin_id = uuid.UUID(str(payload['user_id']))
+        now = timezone.now()
+
+        if action == 'approve':
+            r.status = Reservation.Status.APPROVED
+            event_type = OutboxEvent.EventType.RESERVATION_APPROVED
+        else:
+            r.status = Reservation.Status.REJECTED
+            event_type = OutboxEvent.EventType.RESERVATION_REJECTED
+
+        r.reviewed_at = now
+        r.reviewed_by_user_id = admin_id
+        r.review_notes = notes
+
+        super(Reservation, r).save(
+            update_fields=['status', 'reviewed_at', 'reviewed_by_user_id', 'review_notes', 'updated_at']
+        )
+
+        _create_outbox_and_publish(
+            event_type,
+            {
+                'reservation_id': str(r.id),
+                'space_id': str(r.space_id),
+                'requester_user_id': str(r.requester_user_id),
+                'reservation_date': r.reservation_date.isoformat(),
+                'start_hour': r.start_hour,
+                'end_hour': r.end_hour,
+                'action': action,
+                'notes': notes,
+                'reviewed_by': str(admin_id),
+                'reviewed_at': now.isoformat(),
+            },
+        )
 
         return Response(_serialize_reservation(r))

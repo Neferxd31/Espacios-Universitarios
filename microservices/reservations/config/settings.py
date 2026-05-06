@@ -123,6 +123,11 @@ USERS_SERVICE_URL = os.environ.get('USERS_SERVICE_URL', 'http://127.0.0.1:8080')
 SPACES_SERVICE_URL = os.environ.get('SPACES_SERVICE_URL', 'http://127.0.0.1:8082').rstrip('/')
 
 # ---------------------------------------------------------------------------
+# RabbitMQ — HU-3
+# ---------------------------------------------------------------------------
+RABBITMQ_URL = os.environ.get('RABBITMQ_URL', 'amqp://guest:guest@localhost:5672/')
+
+# ---------------------------------------------------------------------------
 # DRF
 # ---------------------------------------------------------------------------
 REST_FRAMEWORK = {

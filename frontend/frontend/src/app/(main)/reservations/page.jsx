@@ -6,25 +6,23 @@ import { reservationsApi } from "@/lib/apiClient"
 
 const today = new Date().toISOString().split("T")[0]
 
+const STATUS_CFG = {
+  pending:   { label: 'Pendiente',  bg: '#FEF9E7', color: '#9A7D0A', dot: '#F0B429' },
+  confirmed: { label: 'Confirmada', bg: '#D5F5E3', color: '#1E8449', dot: '#27AE60' },
+  approved:  { label: 'Aprobada',   bg: '#D5F5E3', color: '#1E8449', dot: '#27AE60' },
+  rejected:  { label: 'Rechazada',  bg: '#FDEDEC', color: '#C0392B', dot: '#E74C3C' },
+  cancelled: { label: 'Cancelada',  bg: '#F3F4F6', color: '#6B7280', dot: '#9CA3AF' },
+}
+
 function StatusBadge({ status }) {
-  if (status === "confirmed") {
-    return (
-      <span
-        className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold"
-        style={{ background: "#D5F5E3", color: "#1E8449" }}
-      >
-        <span className="w-1.5 h-1.5 rounded-full bg-green-500 inline-block" />
-        Confirmada
-      </span>
-    )
-  }
+  const cfg = STATUS_CFG[status] || STATUS_CFG.pending
   return (
     <span
       className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold"
-      style={{ background: "#FDEDEC", color: "#C0392B" }}
+      style={{ background: cfg.bg, color: cfg.color }}
     >
-      <span className="w-1.5 h-1.5 rounded-full bg-red-500 inline-block" />
-      Cancelada
+      <span className="w-1.5 h-1.5 rounded-full inline-block" style={{ background: cfg.dot }} />
+      {cfg.label}
     </span>
   )
 }
@@ -53,11 +51,13 @@ export default function ReservationsPage() {
     fetchReservations()
   }, [fetchReservations])
 
+  // Activas: pendiente, confirmada o aprobada y con fecha futura/hoy
+  const ACTIVE_STATUSES = ["pending", "confirmed", "approved"]
   const active = reservations.filter(
-    (r) => r.status === "confirmed" && r.reservation_date >= today
+    (r) => ACTIVE_STATUSES.includes(r.status) && r.reservation_date >= today
   )
   const history = reservations.filter(
-    (r) => r.status === "cancelled" || r.reservation_date < today
+    (r) => !ACTIVE_STATUSES.includes(r.status) || r.reservation_date < today
   )
 
   const displayed = activeTab === "active" ? active : history
@@ -194,7 +194,7 @@ export default function ReservationsPage() {
         ) : (
           <div className="space-y-3">
             {displayed.map((r) => {
-              const isActive = r.status === "confirmed" && r.reservation_date >= today
+              const isActive = ACTIVE_STATUSES.includes(r.status) && r.reservation_date >= today
 
               return (
                 <div
