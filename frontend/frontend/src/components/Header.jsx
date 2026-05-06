@@ -5,12 +5,13 @@ import { useEffect, useState } from 'react'
 import { useRouter, usePathname } from 'next/navigation'
 import UFPSLogo from './UFPSLogo'
 import { getUser, getRefreshToken, clearSession } from '@/lib/authStorage'
-import { authApi } from '@/lib/apiClient'
+import { authApi, areasApi } from '@/lib/apiClient'
 
 export default function Header() {
   const router = useRouter()
   const pathname = usePathname()
   const [user, setUser] = useState(null)
+  const [hasAreas, setHasAreas] = useState(false)
 
   // Detect active nav from current path
   const active = pathname.startsWith('/profile')
@@ -22,7 +23,14 @@ export default function Header() {
         : 'spaces'
 
   useEffect(() => {
-    setUser(getUser())
+    const u = getUser()
+    setUser(u)
+    // Verificar si el usuario es responsable de alguna dependencia — HU-2
+    areasApi.misEspacios().then((data) => {
+      setHasAreas((data.areas?.length ?? 0) > 0)
+    }).catch(() => {
+      setHasAreas(false)
+    })
   }, [])
 
   const handleLogout = async () => {
@@ -44,10 +52,11 @@ export default function Header() {
   const roleName = user?.role?.name ?? ''
 
   const navLinks = [
-    { href: '/spaces', label: 'Espacios', key: 'spaces' },
-    { href: '/mis-espacios', label: 'Mi Dependencia', key: 'mis-espacios' },
-    { href: '/reservations', label: 'Mis Reservas', key: 'reservations' },
-    { href: '/profile', label: 'Mi Perfil', key: 'profile' },
+    { href: '/spaces',        label: 'Espacios',       key: 'spaces' },
+    // Solo visible si el usuario es responsable de al menos una dependencia
+    ...(hasAreas ? [{ href: '/mis-espacios', label: 'Mi Dependencia', key: 'mis-espacios' }] : []),
+    { href: '/reservations',  label: 'Mis Reservas',   key: 'reservations' },
+    { href: '/profile',       label: 'Mi Perfil',      key: 'profile' },
   ]
 
   const isAdmin =
