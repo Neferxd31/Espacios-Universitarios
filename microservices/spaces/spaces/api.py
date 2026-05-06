@@ -41,9 +41,17 @@ from .serializers import (
 # ---------------------------------------------------------------------------
 
 class AreaListCreateAPIView(APIView):
+    """
+    GET  /api/v1/areas/  — Listar dependencias (filtrable por tipo)
+    POST /api/v1/areas/  — Crear dependencia (admin) — HU-1
+    """
+
     def get(self, request):
-        areas = Area.objects.all()
-        return Response(AreaSerializer(areas, many=True).data)
+        qs = Area.objects.all()
+        area_type = request.query_params.get('type', '').strip()
+        if area_type:
+            qs = qs.filter(area_type=area_type)
+        return Response(AreaSerializer(qs, many=True).data)
 
     def post(self, request):
         _, error = require_admin(request)
@@ -54,6 +62,42 @@ class AreaListCreateAPIView(APIView):
             return Response({'errors': serializer.errors}, status=400)
         area = serializer.save()
         return Response(AreaSerializer(area).data, status=201)
+
+
+class AreaDetailAPIView(APIView):
+    """
+    GET    /api/v1/areas/<uuid>/  — Detalle de una dependencia
+    PATCH  /api/v1/areas/<uuid>/  — Editar (admin) — HU-1
+    DELETE /api/v1/areas/<uuid>/  — Eliminar (admin) — HU-1
+    """
+
+    def get(self, request, pk):
+        area = get_object_or_404(Area, pk=pk)
+        return Response(AreaSerializer(area).data)
+
+    def patch(self, request, pk):
+        _, error = require_admin(request)
+        if error:
+            return error
+        area = get_object_or_404(Area, pk=pk)
+        serializer = AreaWriteSerializer(area, data=request.data, partial=True)
+        if not serializer.is_valid():
+            return Response({'errors': serializer.errors}, status=400)
+        area = serializer.save()
+        return Response(AreaSerializer(area).data)
+
+    def delete(self, request, pk):
+        _, error = require_admin(request)
+        if error:
+            return error
+        area = get_object_or_404(Area, pk=pk)
+        if area.spaces.filter(is_active=True).exists():
+            return Response(
+                {'detail': 'No se puede eliminar una dependencia que tiene espacios activos.'},
+                status=400,
+            )
+        area.delete()
+        return Response({'detail': 'Dependencia eliminada exitosamente.'})
 
 
 # ---------------------------------------------------------------------------

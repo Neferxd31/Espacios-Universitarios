@@ -1,4 +1,21 @@
 services:
+  # ── Message Broker (RabbitMQ) ─────────────────────────────────────────────
+  rabbitmq:
+    image: rabbitmq:3.13-management-alpine
+    ports:
+      - "5672:5672"    # AMQP — consumido por los microservicios
+      - "15672:15672"  # Management UI → http://localhost:15672 (guest/guest)
+    environment:
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER:-guest}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASS:-guest}
+    networks:
+      - classrooms
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
   # ── API Gateway (Nginx) ──────────────────────────────────────────────────
   gateway:
     build:
@@ -36,6 +53,9 @@ services:
       DJANGO_ALLOWED_HOSTS: localhost,127.0.0.1,spaces,gateway
       DATABASE_URL: ${SPACES_DATABASE_URL}
       JWT_SECRET_KEY: ${JWT_SECRET_KEY:-dev-jwt-secret-change-in-production}
+      RABBITMQ_URL: amqp://${RABBITMQ_USER:-guest}:${RABBITMQ_PASS:-guest}@rabbitmq:5672/
+    depends_on:
+      - rabbitmq
     networks:
       - classrooms
 
@@ -50,9 +70,11 @@ services:
       JWT_SECRET_KEY: ${JWT_SECRET_KEY:-dev-jwt-secret-change-in-production}
       USERS_SERVICE_URL: http://users:8000
       SPACES_SERVICE_URL: http://spaces:8000
+      RABBITMQ_URL: amqp://${RABBITMQ_USER:-guest}:${RABBITMQ_PASS:-guest}@rabbitmq:5672/
     depends_on:
-      - users   
+      - users
       - spaces
+      - rabbitmq
     networks:
       - classrooms
 
@@ -61,7 +83,6 @@ services:
     build:
       context: ./frontend/frontend
       args:
-        # Ahora todo pasa por el gateway en un solo puerto
         NEXT_PUBLIC_API_URL: http://localhost:8000
     ports:
       - "3000:3000"
