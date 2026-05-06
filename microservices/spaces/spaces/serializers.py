@@ -4,9 +4,17 @@ from .models import Area, Space, SpaceOperatingHours
 
 
 class AreaSerializer(serializers.ModelSerializer):
+    """Serializer de lectura — incluye tipo y responsable."""
+    area_type_display = serializers.CharField(source='get_area_type_display', read_only=True)
+
     class Meta:
         model = Area
-        fields = ('id', 'code', 'name', 'description', 'sort_order')
+        fields = (
+            'id', 'code', 'name', 'description',
+            'area_type', 'area_type_display',
+            'responsible_user_id', 'sort_order',
+            'created_at', 'updated_at',
+        )
 
 
 class OperatingHoursSerializer(serializers.ModelSerializer):
@@ -64,9 +72,30 @@ class SpaceWriteSerializer(serializers.ModelSerializer):
 
 
 class AreaWriteSerializer(serializers.ModelSerializer):
+    """Serializer de escritura — HU-1."""
     class Meta:
         model = Area
-        fields = ('code', 'name', 'description', 'sort_order')
+        fields = ('code', 'name', 'description', 'area_type', 'responsible_user_id', 'sort_order')
+
+    def validate_code(self, value):
+        value = value.strip().lower()
+        if not value:
+            raise serializers.ValidationError('El código no puede estar en blanco.')
+        return value
+
+    def validate_name(self, value):
+        value = value.strip()
+        if not value:
+            raise serializers.ValidationError('El nombre no puede estar en blanco.')
+        return value
+
+    def update(self, instance, validated_data):
+        # El código es inmutable una vez creado — lo ignoramos en PATCH
+        validated_data.pop('code', None)
+        for attr, value in validated_data.items():
+            setattr(instance, attr, value)
+        instance.save()
+        return instance
 
 
 class OperatingHoursWriteSerializer(serializers.Serializer):

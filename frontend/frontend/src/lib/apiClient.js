@@ -100,6 +100,27 @@ export const adminUsersApi = {
 }
 
 // ---------------------------------------------------------------------------
+// Admin — dependencias / áreas (HU-1 proyecto)
+// ---------------------------------------------------------------------------
+export const areasApi = {
+  list: (params = {}) => {
+    const qs = new URLSearchParams(params).toString()
+    return request(`/api/v1/areas/${qs ? `?${qs}` : ''}`, { auth: true })
+  },
+
+  get: (id) => request(`/api/v1/areas/${id}/`, { auth: true }),
+
+  create: (payload) =>
+    request('/api/v1/areas/', { method: 'POST', body: payload, auth: true }),
+
+  update: (id, payload) =>
+    request(`/api/v1/areas/${id}/`, { method: 'PATCH', body: payload, auth: true }),
+
+  delete: (id) =>
+    request(`/api/v1/areas/${id}/`, { method: 'DELETE', auth: true }),
+}
+
+// ---------------------------------------------------------------------------
 // Admin — espacios (HU-20, 21, 22, 23)
 // ---------------------------------------------------------------------------
 export const spacesApi = {
@@ -123,10 +144,9 @@ export const spacesApi = {
   delete: (id) =>
     request(`/api/v1/spaces/${id}/`, { method: 'DELETE', auth: true }),
 
-  // Áreas
-  listAreas: () => request('/api/v1/areas/', { auth: true }),
-  createArea: (payload) =>
-    request('/api/v1/areas/', { method: 'POST', body: payload, auth: true }),
+  // Compatibilidad — usa areasApi internamente
+  listAreas: (params = {}) => areasApi.list(params),
+  createArea: (payload) => areasApi.create(payload),
 
   // HU-25 — Horarios
   getHorarios: (spaceId) =>
