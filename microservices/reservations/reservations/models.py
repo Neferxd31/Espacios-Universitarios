@@ -13,8 +13,14 @@ class Reservation(models.Model):
     """
 
     class Status(models.TextChoices):
-        CONFIRMED = 'confirmed', 'Confirmed'
-        CANCELLED = 'cancelled', 'Cancelled'
+        PENDING   = 'pending',   'Pendiente'
+        CONFIRMED = 'confirmed', 'Confirmada'   # legado — equivale a aprobada
+        APPROVED  = 'approved',  'Aprobada'
+        REJECTED  = 'rejected',  'Rechazada'
+        CANCELLED = 'cancelled', 'Cancelada'
+
+    # Estados que ocupan el slot (bloquean nuevas reservas)
+    ACTIVE_STATUSES = ('confirmed', 'approved', 'pending')
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     space_id = models.UUIDField(db_index=True)
@@ -29,8 +35,11 @@ class Reservation(models.Model):
     status = models.CharField(
         max_length=16,
         choices=Status.choices,
-        default=Status.CONFIRMED,
+        default=Status.PENDING,
     )
+    reviewed_at = models.DateTimeField(null=True, blank=True)
+    reviewed_by_user_id = models.UUIDField(null=True, blank=True)
+    review_notes = models.TextField(blank=True, default='')
     cancelled_at = models.DateTimeField(null=True, blank=True)
     cancelled_by_user_id = models.UUIDField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
@@ -64,20 +73,20 @@ class Reservation(models.Model):
 
     def clean(self) -> None:
         super().clean()
-        if self.status == self.Status.CANCELLED:
+        if self.status in (self.Status.CANCELLED, self.Status.REJECTED):
             return
         if self.start_hour >= self.end_hour:
             raise ValidationError(
                 'end_hour must be greater than start_hour (half-open hourly blocks).'
             )
-        self._validate_no_overlapping_confirmed()
+        self._validate_no_overlapping_active()
 
-    def _validate_no_overlapping_confirmed(self) -> None:
+    def _validate_no_overlapping_active(self) -> None:
         """Two half-open ranges [s1, e1) and [s2, e2) overlap iff s1 < e2 and s2 < e1."""
         overlaps = Reservation.objects.filter(
             space_id=self.space_id,
             reservation_date=self.reservation_date,
-            status=self.Status.CONFIRMED,
+            status__in=self.ACTIVE_STATUSES,
             start_hour__lt=self.end_hour,
             end_hour__gt=self.start_hour,
         )
@@ -85,7 +94,7 @@ class Reservation(models.Model):
             overlaps = overlaps.exclude(pk=self.pk)
         if overlaps.exists():
             raise ValidationError(
-                'This space already has a confirmed reservation overlapping that time window.'
+                'This space already has an active reservation overlapping that time window.'
             )
 
     def save(self, *args, **kwargs):
@@ -95,7 +104,9 @@ class Reservation(models.Model):
 
 class OutboxEvent(models.Model):
     class EventType(models.TextChoices):
-        RESERVATION_CREATED = 'ReservationCreated', 'Reservation Created'
+        RESERVATION_CREATED   = 'ReservationCreated',   'Reservation Created'
+        RESERVATION_APPROVED  = 'ReservationApproved',  'Reservation Approved'
+        RESERVATION_REJECTED  = 'ReservationRejected',  'Reservation Rejected'
         RESERVATION_CANCELLED = 'ReservationCancelled', 'Reservation Cancelled'
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
