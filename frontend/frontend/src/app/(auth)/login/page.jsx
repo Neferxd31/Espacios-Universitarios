@@ -113,7 +113,7 @@ export default function LoginPage() {
 
         <div className="relative z-10">
           <p className="text-red-300 text-xs">
-            © 2025 Universidad Francisco de Paula Santander
+            © 2026 Universidad Francisco de Paula Santander
           </p>
         </div>
       </div>
