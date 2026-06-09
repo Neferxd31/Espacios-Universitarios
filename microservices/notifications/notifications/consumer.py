@@ -52,7 +52,9 @@ def _resolve_recipient_email(payload: dict) -> str | None:
   email = payload.get('user_email')
   if email:
     return email
-  # TODO: hacer fetch a users MS por requester_user_id si no viene el email
+  # Si llega un payload sin email (publisher antiguo o evento manual), se
+  # omite el envío. Podría resolverse vía users MS, pero hoy todos los
+  # publishers en este repo incluyen user_email.
   logger.warning('Payload sin user_email — se omite envío: %s', payload)
   return None
 
