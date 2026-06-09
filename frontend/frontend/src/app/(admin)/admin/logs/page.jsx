@@ -108,15 +108,15 @@ export default function LogsPage() {
   }
 
   return (
-    <div className="p-8 max-w-6xl mx-auto space-y-6">
+    <div className="p-4 sm:p-8 max-w-6xl mx-auto space-y-6">
       <header>
-        <h1 className="text-2xl font-bold text-gray-900">Logs de actividad</h1>
-        <p className="text-gray-500">Auditoría de acciones críticas del sistema.</p>
+        <h1 className="text-xl sm:text-2xl font-bold text-gray-900">Logs de actividad</h1>
+        <p className="text-gray-500 text-sm">Auditoría de acciones críticas del sistema.</p>
       </header>
 
       {/* Filtro */}
-      <section className="bg-white p-4 rounded-2xl shadow-sm border border-gray-100 flex items-end gap-3">
-        <div>
+      <section className="bg-white p-4 rounded-2xl shadow-sm border border-gray-100 flex flex-col sm:flex-row sm:items-end gap-3">
+        <div className="flex-1">
           <label className="block text-xs font-medium text-gray-600 mb-1">
             Filtrar por acción
           </label>
@@ -125,7 +125,7 @@ export default function LogsPage() {
             placeholder="ej: ReservationApproved"
             value={filterAction}
             onChange={(e) => setFilterAction(e.target.value)}
-            className="border rounded-lg px-3 py-2 text-sm w-64"
+            className="border rounded-lg px-3 py-2 text-sm w-full sm:w-64"
           />
         </div>
         <button
@@ -149,45 +149,78 @@ export default function LogsPage() {
         ) : logs.length === 0 ? (
           <div className="p-8 text-gray-400 text-sm">Sin registros.</div>
         ) : (
-          <table className="w-full text-sm">
-            <thead className="bg-gray-50 text-left text-gray-500 text-xs uppercase">
-              <tr>
-                <th className="px-4 py-3">Fecha</th>
-                <th className="px-4 py-3">Usuario</th>
-                <th className="px-4 py-3">Acción</th>
-                <th className="px-4 py-3">Recurso</th>
-                <th className="px-4 py-3">IP</th>
-              </tr>
-            </thead>
-            <tbody>
+          <>
+            {/* Tabla desktop */}
+            <div className="hidden md:block overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead className="bg-gray-50 text-left text-gray-500 text-xs uppercase">
+                  <tr>
+                    <th className="px-4 py-3 whitespace-nowrap">Fecha</th>
+                    <th className="px-4 py-3">Usuario</th>
+                    <th className="px-4 py-3">Acción</th>
+                    <th className="px-4 py-3">Recurso</th>
+                    <th className="px-4 py-3 whitespace-nowrap">IP</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {logs.map((log) => {
+                    const resolvedUser = userById.get(log.user_id)
+                    const displayUser =
+                      resolvedUser ||
+                      log.user_label ||
+                      (log.user_id ? (
+                        <span className="font-mono text-xs text-gray-400">
+                          {log.user_id.slice(0, 8)}…
+                        </span>
+                      ) : (
+                        "—"
+                      ))
+                    return (
+                      <tr key={log.id} className="border-t">
+                        <td className="px-4 py-2 text-gray-600 whitespace-nowrap">
+                          {new Date(log.timestamp).toLocaleString()}
+                        </td>
+                        <td className="px-4 py-2">{displayUser}</td>
+                        <td className="px-4 py-2 font-semibold">{log.action}</td>
+                        <td className="px-4 py-2">{renderResource(log)}</td>
+                        <td className="px-4 py-2 text-gray-500 whitespace-nowrap">
+                          {log.ip_address || "—"}
+                        </td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Cards móvil */}
+            <div className="md:hidden divide-y">
               {logs.map((log) => {
                 const resolvedUser = userById.get(log.user_id)
                 const displayUser =
                   resolvedUser ||
                   log.user_label ||
-                  (log.user_id ? (
-                    <span className="font-mono text-xs text-gray-400">
-                      {log.user_id.slice(0, 8)}…
-                    </span>
-                  ) : (
-                    "—"
-                  ))
+                  (log.user_id ? log.user_id.slice(0, 8) + "…" : "—")
                 return (
-                  <tr key={log.id} className="border-t">
-                    <td className="px-4 py-2 text-gray-600">
-                      {new Date(log.timestamp).toLocaleString()}
-                    </td>
-                    <td className="px-4 py-2">{displayUser}</td>
-                    <td className="px-4 py-2 font-semibold">{log.action}</td>
-                    <td className="px-4 py-2">{renderResource(log)}</td>
-                    <td className="px-4 py-2 text-gray-500">
-                      {log.ip_address || "—"}
-                    </td>
-                  </tr>
+                  <div key={log.id} className="p-4 space-y-1">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-semibold uppercase text-red-700">
+                        {log.action}
+                      </span>
+                      <span className="text-xs text-gray-400">
+                        {new Date(log.timestamp).toLocaleString()}
+                      </span>
+                    </div>
+                    <div className="text-sm text-gray-700">{displayUser}</div>
+                    <div className="text-xs text-gray-500">{renderResource(log)}</div>
+                    {log.ip_address && (
+                      <div className="text-xs text-gray-400">IP: {log.ip_address}</div>
+                    )}
+                  </div>
                 )
               })}
-            </tbody>
-          </table>
+            </div>
+          </>
         )}
       </section>
     </div>

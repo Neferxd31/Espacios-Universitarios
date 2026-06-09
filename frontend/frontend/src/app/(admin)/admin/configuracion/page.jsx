@@ -78,9 +78,9 @@ export default function AdminConfigPage() {
   }
 
   return (
-    <div className="p-8 max-w-3xl">
-      <div className="mb-8">
-        <h1 className="text-2xl font-bold text-gray-900">Configuración del sistema</h1>
+    <div className="p-4 sm:p-8 max-w-3xl mx-auto">
+      <div className="mb-6 sm:mb-8">
+        <h1 className="text-xl sm:text-2xl font-bold text-gray-900">Configuración del sistema</h1>
         <p className="text-gray-500 text-sm mt-1">
           Parámetros generales y reglas de reserva
         </p>
@@ -110,7 +110,7 @@ export default function AdminConfigPage() {
         </p>
 
         {rules && (
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <RuleInput
               label="Horas máximas por día (por usuario)"
               hint="Tope diario de horas reservadas por un mismo usuario."
@@ -239,7 +239,7 @@ function Field({ label, children }) {
 
 function RuleInput({ label, hint, value, onChange, min, max, colSpan = 1 }) {
   return (
-    <div className={colSpan === 2 ? "col-span-2" : ""}>
+    <div className={colSpan === 2 ? "md:col-span-2" : ""}>
       <label className="block text-sm font-medium text-gray-700 mb-1.5">{label}</label>
       <input
         type="number"

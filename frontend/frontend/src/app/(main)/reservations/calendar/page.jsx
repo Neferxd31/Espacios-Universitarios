@@ -57,16 +57,16 @@ export default function CalendarPage() {
   }
 
   return (
-    <div className="p-8 max-w-6xl mx-auto space-y-6">
-      <header className="flex items-center justify-between">
+    <div className="p-4 sm:p-8 max-w-6xl mx-auto space-y-6">
+      <header className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Calendario</h1>
-          <p className="text-gray-500">Disponibilidad por espacio · click en una franja libre para reservar.</p>
+          <h1 className="text-xl sm:text-2xl font-bold text-gray-900">Calendario</h1>
+          <p className="text-gray-500 text-sm">Click en una franja libre para reservar.</p>
         </div>
-        <div className="flex gap-2">
-          <button onClick={() => setWeekStart(shiftDays(weekStart, -7))} className="px-3 py-2 border rounded-lg text-sm hover:bg-gray-50">← Anterior</button>
-          <button onClick={() => setWeekStart(startOfWeek(new Date()))} className="px-3 py-2 border rounded-lg text-sm hover:bg-gray-50">Hoy</button>
-          <button onClick={() => setWeekStart(shiftDays(weekStart, 7))} className="px-3 py-2 border rounded-lg text-sm hover:bg-gray-50">Siguiente →</button>
+        <div className="flex gap-2 flex-wrap">
+          <button onClick={() => setWeekStart(shiftDays(weekStart, -7))} className="flex-1 sm:flex-none px-3 py-2 border rounded-lg text-sm hover:bg-gray-50">← Anterior</button>
+          <button onClick={() => setWeekStart(startOfWeek(new Date()))} className="flex-1 sm:flex-none px-3 py-2 border rounded-lg text-sm hover:bg-gray-50">Hoy</button>
+          <button onClick={() => setWeekStart(shiftDays(weekStart, 7))} className="flex-1 sm:flex-none px-3 py-2 border rounded-lg text-sm hover:bg-gray-50">Siguiente →</button>
         </div>
       </header>
 
@@ -90,7 +90,7 @@ export default function CalendarPage() {
       )}
 
       <section className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-x-auto">
-        <table className="w-full text-xs border-collapse">
+        <table className="w-full text-xs border-collapse min-w-[640px]">
           <thead>
             <tr>
               <th className="p-2 border-b border-r text-gray-500 w-16">Hora</th>

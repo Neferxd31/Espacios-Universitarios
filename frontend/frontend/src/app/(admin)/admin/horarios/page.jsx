@@ -89,17 +89,27 @@ export default function AdminHorariosPage() {
   }
 
   return (
-    <div className="p-8">
-      <div className="mb-8">
-        <h1 className="text-2xl font-bold text-gray-900">Gestión de Horarios</h1>
-        <p className="text-gray-500 text-sm mt-1">
-          Define los horarios de operación de cada espacio universitario
-        </p>
+    <div className="p-4 sm:p-8">
+      <div className="mb-6 sm:mb-8 flex items-start justify-between gap-3">
+        <div>
+          <h1 className="text-xl sm:text-2xl font-bold text-gray-900">Gestión de Horarios</h1>
+          <p className="text-gray-500 text-sm mt-1">
+            Define los horarios de operación de cada espacio universitario
+          </p>
+        </div>
+        {selectedSpace && (
+          <button
+            onClick={() => setSelectedSpace(null)}
+            className="lg:hidden text-xs font-medium px-3 py-2 rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50 flex-shrink-0"
+          >
+            ← Espacios
+          </button>
+        )}
       </div>
 
-      <div className="flex gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-[18rem_1fr] gap-4 lg:gap-6">
         {/* Panel izquierdo — lista de espacios */}
-        <div className="w-72 flex-shrink-0">
+        <div className={selectedSpace ? 'hidden lg:block' : ''}>
           <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
             <div className="px-4 py-3 border-b border-gray-100">
               <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Espacios</p>
@@ -109,7 +119,7 @@ export default function AdminHorariosPage() {
             ) : spaces.length === 0 ? (
               <div className="py-8 text-center text-gray-400 text-sm">Sin espacios</div>
             ) : (
-              <div className="divide-y divide-gray-50">
+              <div className="divide-y divide-gray-50 max-h-[60vh] lg:max-h-[calc(100vh-220px)] overflow-y-auto">
                 {spaces.map((space) => (
                   <button
                     key={space.id}
@@ -136,27 +146,27 @@ export default function AdminHorariosPage() {
         </div>
 
         {/* Panel derecho — editor de horarios */}
-        <div className="flex-1">
+        <div className={!selectedSpace ? 'hidden lg:block' : ''}>
           {!selectedSpace ? (
             <div
               className="bg-white rounded-2xl shadow-sm border border-gray-100 flex items-center justify-center"
               style={{ minHeight: 320 }}
             >
-              <div className="text-center">
+              <div className="text-center px-4">
                 <p className="text-4xl mb-3">🕐</p>
                 <p className="text-gray-500 text-sm">Selecciona un espacio para ver sus horarios</p>
               </div>
             </div>
           ) : (
-            <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
-              <div className="flex items-center justify-between mb-6">
-                <div>
-                  <h2 className="text-lg font-bold text-gray-900">{selectedSpace.name}</h2>
+            <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 sm:p-6">
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-6 gap-3">
+                <div className="min-w-0">
+                  <h2 className="text-base sm:text-lg font-bold text-gray-900 truncate">{selectedSpace.name}</h2>
                   <p className="text-sm text-gray-400">{selectedSpace.code}</p>
                 </div>
                 <button
                   onClick={addHorario}
-                  className="flex items-center gap-2 px-3 py-2 rounded-xl text-white text-sm font-medium transition-all"
+                  className="flex items-center justify-center gap-2 px-3 py-2 rounded-xl text-white text-sm font-medium transition-all w-full sm:w-auto"
                   style={{ background: '#C0392B' }}
                   onMouseEnter={(e) => (e.currentTarget.style.background = '#922B21')}
                   onMouseLeave={(e) => (e.currentTarget.style.background = '#C0392B')}
@@ -198,9 +208,9 @@ export default function AdminHorariosPage() {
                       {draft.map((h, idx) => (
                         <div
                           key={idx}
-                          className="flex items-center gap-3 p-4 rounded-xl border border-gray-100 bg-gray-50"
+                          className="flex items-start sm:items-center gap-3 p-3 sm:p-4 rounded-xl border border-gray-100 bg-gray-50"
                         >
-                          <div className="flex-1 grid grid-cols-3 gap-3">
+                          <div className="flex-1 grid grid-cols-1 sm:grid-cols-3 gap-3">
                             <div>
                               <label className="block text-xs font-medium text-gray-500 mb-1">Día</label>
                               <select
@@ -245,11 +255,11 @@ export default function AdminHorariosPage() {
                     </div>
                   )}
 
-                  <div className="flex justify-end">
+                  <div className="flex flex-col sm:flex-row sm:justify-end">
                     <button
                       onClick={handleSave}
                       disabled={saving}
-                      className="px-6 py-2.5 rounded-xl text-white font-semibold text-sm transition-all"
+                      className="w-full sm:w-auto px-6 py-2.5 rounded-xl text-white font-semibold text-sm transition-all"
                       style={{ background: saving ? '#922B21' : '#C0392B', opacity: saving ? 0.7 : 1 }}
                       onMouseEnter={(e) => !saving && (e.currentTarget.style.background = '#922B21')}
                       onMouseLeave={(e) => !saving && (e.currentTarget.style.background = '#C0392B')}

@@ -151,18 +151,18 @@ export default function DepartamentosPage() {
   }
 
   return (
-    <div className="p-8">
+    <div className="p-4 sm:p-8">
       {/* Encabezado */}
-      <div className="flex items-center justify-between mb-8">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-6 sm:mb-8 gap-3">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Gestión de Dependencias</h1>
+          <h1 className="text-xl sm:text-2xl font-bold text-gray-900">Gestión de Dependencias</h1>
           <p className="text-gray-500 text-sm mt-1">
             Registra los departamentos, unidades y dependencias responsables de los espacios
           </p>
         </div>
         <button
           onClick={openCreate}
-          className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-white text-sm font-semibold transition-all"
+          className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-white text-sm font-semibold transition-all w-full sm:w-auto"
           style={{ background: '#C0392B' }}
           onMouseEnter={(e) => (e.currentTarget.style.background = '#922B21')}
           onMouseLeave={(e) => (e.currentTarget.style.background = '#C0392B')}
@@ -184,29 +184,29 @@ export default function DepartamentosPage() {
       )}
 
       {/* Estadísticas */}
-      <div className="grid grid-cols-4 gap-4 mb-8">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4 mb-6 sm:mb-8">
         {[
           { label: 'Total', value: stats.total, color: '#1A1A2E' },
           { label: 'Departamentos', value: stats.departamentos, color: '#1A5276' },
           { label: 'Unidades', value: stats.unidades, color: '#1E8449' },
           { label: 'Dependencias', value: stats.dependencias, color: '#9A7D0A' },
         ].map((s) => (
-          <div key={s.label} className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5">
-            <p className="text-sm text-gray-500">{s.label}</p>
-            <p className="text-3xl font-bold mt-1" style={{ color: s.color }}>{s.value}</p>
+          <div key={s.label} className="bg-white rounded-2xl shadow-sm border border-gray-100 p-3 sm:p-5">
+            <p className="text-xs sm:text-sm text-gray-500 leading-tight">{s.label}</p>
+            <p className="text-2xl sm:text-3xl font-bold mt-1" style={{ color: s.color }}>{s.value}</p>
           </div>
         ))}
       </div>
 
       {/* Filtros por tipo */}
       <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 mb-6">
-        <div className="flex gap-2">
-          <span className="text-sm text-gray-500 self-center mr-2 font-medium">Tipo:</span>
+        <div className="flex gap-2 items-center overflow-x-auto">
+          <span className="text-sm text-gray-500 mr-2 font-medium flex-shrink-0">Tipo:</span>
           {['Todos', 'Departamento', 'Unidad', 'Dependencia'].map((t) => (
             <button
               key={t}
               onClick={() => setTipoFilter(t === 'Todos' ? 'Todos' : t.toLowerCase())}
-              className="px-3 py-1.5 rounded-lg text-sm font-medium transition-all"
+              className="px-3 py-1.5 rounded-lg text-sm font-medium transition-all whitespace-nowrap flex-shrink-0"
               style={
                 (t === 'Todos' ? tipoFilter === 'Todos' : tipoFilter === t.toLowerCase())
                   ? { background: '#C0392B', color: 'white' }
@@ -223,7 +223,7 @@ export default function DepartamentosPage() {
       {loading ? (
         <div className="py-16 text-center text-gray-400 text-sm">Cargando dependencias...</div>
       ) : (
-        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-x-auto">
           {areas.length === 0 ? (
             <div className="py-16 text-center">
               <div
@@ -242,7 +242,7 @@ export default function DepartamentosPage() {
               </button>
             </div>
           ) : (
-            <table className="w-full">
+            <table className="w-full min-w-[700px]">
               <thead>
                 <tr style={{ background: '#F9FAFB' }}>
                   {['Código', 'Nombre', 'Tipo', 'Responsable (Jefe)', 'Descripción', 'Acciones'].map((h) => (

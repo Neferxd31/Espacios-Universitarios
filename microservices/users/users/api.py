@@ -32,6 +32,7 @@ from .auth import (
     hash_password,
     verify_password,
 )
+from .audit import record_audit
 from .models import Role, User, UserSession
 from .publisher import publish_user_event
 from .serializers import (
@@ -141,6 +142,17 @@ class RegisterAPIView(APIView):
         ip = _get_client_ip(request)
         auth_data = _build_auth_response(user, ip)
 
+        # Audit HU-27 — registra el registro de usuario nuevo
+        record_audit(
+            user_id=str(user.id),
+            user_label=f'{user.first_name} {user.last_name} ({user.university_code})',
+            action='user_registered',
+            resource='user',
+            resource_id=str(user.id),
+            ip_address=ip,
+            metadata={'role': role.name, 'email': user.email},
+        )
+
         return Response(auth_data, status=201)
 
 
@@ -195,6 +207,18 @@ class LoginAPIView(APIView):
 
         logger.info('Login exitoso: %s desde %s', user.university_code, ip)
 
+        # Audit HU-27 — registra el login en el MS reports
+        role_name = user.role.name if user.role else ''
+        record_audit(
+            user_id=str(user.id),
+            user_label=f'{user.first_name} {user.last_name} ({user.university_code})',
+            action='login',
+            resource='auth',
+            resource_id=user.university_code,
+            ip_address=ip,
+            metadata={'role': role_name, 'email': user.email},
+        )
+
         return Response(auth_data, status=200)
 
 
@@ -229,6 +253,17 @@ class LogoutAPIView(APIView):
             )
 
         logger.info('Logout: usuario %s cerró sesión.', user.university_code)
+
+        # Audit HU-27 — registra el cierre de sesión
+        record_audit(
+            user_id=str(user.id),
+            user_label=f'{user.first_name} {user.last_name} ({user.university_code})',
+            action='logout',
+            resource='auth',
+            resource_id=user.university_code,
+            ip_address=_get_client_ip(request),
+            metadata={'role': user.role.name if user.role else ''},
+        )
 
         return Response({'detail': 'Sesión cerrada exitosamente.'}, status=200)
 
@@ -291,6 +326,17 @@ class PasswordRecoveryAPIView(APIView):
             )
 
         logger.info('Recuperación de contraseña solicitada para: %s (publicado=%s)', email, published)
+
+        # Audit HU-27
+        record_audit(
+            user_id=str(user.id),
+            user_label=f'{user.first_name} {user.last_name} ({user.university_code})',
+            action='password_recovery_requested',
+            resource='auth',
+            resource_id=user.university_code,
+            ip_address=_get_client_ip(request),
+            metadata={'email': user.email},
+        )
 
         return Response(base_response, status=200)
 

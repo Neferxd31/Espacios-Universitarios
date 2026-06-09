@@ -85,18 +85,18 @@ export default function ReservationsPage() {
 
   return (
     <div>
-      <main className="max-w-5xl mx-auto px-6 py-8">
+      <main className="max-w-5xl mx-auto px-4 sm:px-6 py-6 sm:py-8">
         {/* Encabezado */}
-        <div className="flex items-center justify-between mb-8">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-6 sm:mb-8 gap-3">
           <div>
-            <h1 className="text-2xl font-bold text-gray-900">Mis Reservas</h1>
-            <p className="text-gray-500 mt-1">
+            <h1 className="text-xl sm:text-2xl font-bold text-gray-900">Mis Reservas</h1>
+            <p className="text-gray-500 mt-1 text-sm">
               Gestiona todas tus reservas de espacios universitarios
             </p>
           </div>
-          <Link href="/spaces">
+          <Link href="/spaces" className="w-full sm:w-auto">
             <button
-              className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-white text-sm font-semibold transition-all"
+              className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-white text-sm font-semibold transition-all w-full sm:w-auto"
               style={{ background: "#C0392B" }}
               onMouseEnter={(e) => (e.currentTarget.style.background = "#922B21")}
               onMouseLeave={(e) => (e.currentTarget.style.background = "#C0392B")}
@@ -120,7 +120,7 @@ export default function ReservationsPage() {
         )}
 
         {/* Estadísticas */}
-        <div className="grid grid-cols-3 gap-4 mb-8">
+        <div className="grid grid-cols-3 gap-2 sm:gap-4 mb-6 sm:mb-8">
           {[
             { label: "Reservas activas", value: active.length, color: "#C0392B" },
             { label: "Total realizadas", value: reservations.length, color: "#1A5276" },
@@ -132,10 +132,10 @@ export default function ReservationsPage() {
           ].map((stat) => (
             <div
               key={stat.label}
-              className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5"
+              className="bg-white rounded-2xl shadow-sm border border-gray-100 p-3 sm:p-5"
             >
-              <p className="text-sm text-gray-500">{stat.label}</p>
-              <p className="text-3xl font-bold mt-1" style={{ color: stat.color }}>
+              <p className="text-xs sm:text-sm text-gray-500 leading-tight">{stat.label}</p>
+              <p className="text-2xl sm:text-3xl font-bold mt-1" style={{ color: stat.color }}>
                 {stat.value}
               </p>
             </div>

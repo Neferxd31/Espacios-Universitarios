@@ -142,16 +142,16 @@ export default function AdminUsersPage() {
   }
 
   return (
-    <div className="p-8">
+    <div className="p-4 sm:p-8">
       {/* Encabezado */}
-      <div className="flex items-center justify-between mb-8">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-6 sm:mb-8 gap-3">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Gestión de Usuarios</h1>
+          <h1 className="text-xl sm:text-2xl font-bold text-gray-900">Gestión de Usuarios</h1>
           <p className="text-gray-500 text-sm mt-1">Administra los usuarios registrados en el sistema</p>
         </div>
         <button
           onClick={openCreate}
-          className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-white text-sm font-semibold transition-all"
+          className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-white text-sm font-semibold transition-all w-full sm:w-auto"
           style={{ background: '#C0392B' }}
           onMouseEnter={(e) => (e.currentTarget.style.background = '#922B21')}
           onMouseLeave={(e) => (e.currentTarget.style.background = '#C0392B')}
@@ -173,23 +173,23 @@ export default function AdminUsersPage() {
       )}
 
       {/* Stats */}
-      <div className="grid grid-cols-4 gap-4 mb-8">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4 mb-6 sm:mb-8">
         {[
           { label: 'Total usuarios', value: stats.total, color: '#1A1A2E' },
           { label: 'Estudiantes', value: stats.estudiantes, color: '#1A5276' },
           { label: 'Docentes', value: stats.docentes, color: '#1E8449' },
           { label: 'Inactivos', value: stats.inactivos, color: '#C0392B' },
         ].map((s) => (
-          <div key={s.label} className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5">
-            <p className="text-sm text-gray-500">{s.label}</p>
-            <p className="text-3xl font-bold mt-1" style={{ color: s.color }}>{s.value}</p>
+          <div key={s.label} className="bg-white rounded-2xl shadow-sm border border-gray-100 p-3 sm:p-5">
+            <p className="text-xs sm:text-sm text-gray-500 leading-tight">{s.label}</p>
+            <p className="text-2xl sm:text-3xl font-bold mt-1" style={{ color: s.color }}>{s.value}</p>
           </div>
         ))}
       </div>
 
       {/* Filtros */}
-      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5 mb-6">
-        <div className="flex flex-col sm:flex-row gap-4">
+      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 sm:p-5 mb-6">
+        <div className="flex flex-col lg:flex-row gap-3 lg:gap-4">
           <div className="flex-1 relative">
             <svg className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400" width="16" height="16" viewBox="0 0 16 16" fill="none">
               <circle cx="7" cy="7" r="5" stroke="currentColor" strokeWidth="1.5" />
@@ -203,25 +203,25 @@ export default function AdminUsersPage() {
               className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-gray-200 text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:border-red-400 focus:ring-2 focus:ring-red-100"
             />
           </div>
-          <div className="flex gap-2">
-            <div className="flex gap-1 bg-gray-100 rounded-xl p-1">
+          <div className="flex gap-2 flex-wrap overflow-x-auto -mx-1 px-1">
+            <div className="flex gap-1 bg-gray-100 rounded-xl p-1 flex-shrink-0">
               {ROLES.map((r) => (
                 <button
                   key={r}
                   onClick={() => setRoleFilter(r)}
-                  className="px-3 py-1.5 rounded-lg text-xs font-medium transition-all"
+                  className="px-3 py-1.5 rounded-lg text-xs font-medium transition-all whitespace-nowrap"
                   style={roleFilter === r ? { background: '#C0392B', color: 'white' } : { color: '#6B7280' }}
                 >
                   {r}
                 </button>
               ))}
             </div>
-            <div className="flex gap-1 bg-gray-100 rounded-xl p-1">
+            <div className="flex gap-1 bg-gray-100 rounded-xl p-1 flex-shrink-0">
               {['Todos', 'Activo', 'Inactivo'].map((s) => (
                 <button
                   key={s}
                   onClick={() => setStatusFilter(s)}
-                  className="px-3 py-1.5 rounded-lg text-xs font-medium transition-all"
+                  className="px-3 py-1.5 rounded-lg text-xs font-medium transition-all whitespace-nowrap"
                   style={statusFilter === s ? { background: '#C0392B', color: 'white' } : { color: '#6B7280' }}
                 >
                   {s}
@@ -232,9 +232,9 @@ export default function AdminUsersPage() {
         </div>
       </div>
 
-      {/* Tabla */}
-      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-        <table className="w-full">
+      {/* Tabla con scroll horizontal */}
+      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-x-auto">
+        <table className="w-full min-w-[800px]">
           <thead>
             <tr style={{ background: '#F9FAFB', borderBottom: '1px solid #F3F4F6' }}>
               <th className="text-left text-xs font-semibold text-gray-500 uppercase tracking-wider px-6 py-4">Usuario</th>
@@ -344,7 +344,7 @@ export default function AdminUsersPage() {
       {/* Modal crear/editar */}
       {showModal && (
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-8 max-h-[90vh] overflow-y-auto">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-5 sm:p-8 max-h-[90vh] overflow-y-auto">
             <h3 className="text-lg font-bold text-gray-900 mb-6">
               {editUser ? 'Editar usuario' : 'Nuevo usuario'}
             </h3>

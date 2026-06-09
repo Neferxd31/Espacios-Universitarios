@@ -53,10 +53,10 @@ export default function AdminDashboardPage() {
   const maxHour = Math.max(0, ...Object.values(heatmap).map(Number))
 
   return (
-    <div className="p-8 space-y-8 max-w-6xl mx-auto">
+    <div className="p-4 sm:p-8 space-y-6 sm:space-y-8 max-w-6xl mx-auto">
       <header>
-        <h1 className="text-2xl font-bold text-gray-900">Dashboard</h1>
-        <p className="text-gray-500">Estadísticas de uso de los últimos 30 días</p>
+        <h1 className="text-xl sm:text-2xl font-bold text-gray-900">Dashboard</h1>
+        <p className="text-gray-500 text-sm">Estadísticas de uso de los últimos 30 días</p>
       </header>
 
       {error && (

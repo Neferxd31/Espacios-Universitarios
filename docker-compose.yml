@@ -54,6 +54,7 @@ services:
       JWT_REFRESH_TOKEN_EXPIRE_DAYS: ${JWT_REFRESH_TOKEN_EXPIRE_DAYS:-7}
       RABBITMQ_URL: amqp://${RABBITMQ_USER:-guest}:${RABBITMQ_PASS:-guest}@rabbitmq:5672/
       FRONTEND_URL: ${FRONTEND_URL:-http://localhost:3000}
+      REPORTS_SERVICE_URL: http://reports:8000
     depends_on:
       rabbitmq:
         condition: service_healthy

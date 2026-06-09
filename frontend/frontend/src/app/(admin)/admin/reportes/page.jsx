@@ -57,14 +57,14 @@ export default function ReportesPage() {
   const maxHour = Math.max(0, ...Object.values(heatmap).map(Number))
 
   return (
-    <div className="p-8 space-y-6 max-w-6xl mx-auto">
+    <div className="p-4 sm:p-8 space-y-6 max-w-6xl mx-auto">
       <header>
-        <h1 className="text-2xl font-bold text-gray-900">Reportes de uso</h1>
-        <p className="text-gray-500">Genera reportes filtrando por rango de fechas.</p>
+        <h1 className="text-xl sm:text-2xl font-bold text-gray-900">Reportes de uso</h1>
+        <p className="text-gray-500 text-sm">Genera reportes filtrando por rango de fechas.</p>
       </header>
 
       {/* Filtros */}
-      <section className="bg-white p-5 rounded-2xl shadow-sm border border-gray-100 flex flex-wrap items-end gap-4">
+      <section className="bg-white p-5 rounded-2xl shadow-sm border border-gray-100 flex flex-wrap items-end gap-3 sm:gap-4">
         <div>
           <label className="block text-xs font-medium text-gray-600 mb-1">Desde</label>
           <input
@@ -134,9 +134,9 @@ export default function ReportesPage() {
 
       {/* Top espacios (HU-24) */}
       {topSpaces.length > 0 && (
-        <section className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
+        <section className="bg-white p-4 sm:p-6 rounded-2xl shadow-sm border border-gray-100 overflow-x-auto">
           <h2 className="font-semibold text-gray-900 mb-4">Top espacios</h2>
-          <table className="w-full text-sm">
+          <table className="w-full text-sm min-w-[400px]">
             <thead className="text-left text-gray-500 text-xs uppercase">
               <tr>
                 <th className="py-2">Espacio</th>

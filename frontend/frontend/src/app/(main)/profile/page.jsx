@@ -86,40 +86,42 @@ export default function ProfilePage() {
     : 'U'
 
   return (
-    <div className="p-8 max-w-2xl">
-      <div className="mb-8">
-        <h1 className="text-2xl font-bold text-gray-900">Mi perfil</h1>
+    <div className="p-4 sm:p-8 max-w-2xl mx-auto">
+      <div className="mb-6 sm:mb-8">
+        <h1 className="text-xl sm:text-2xl font-bold text-gray-900">Mi perfil</h1>
         <p className="text-gray-500 text-sm mt-1">Actualiza tu información personal</p>
       </div>
 
       {/* Avatar y datos básicos */}
-      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 mb-6 flex items-center gap-5">
-        <div
-          className="w-16 h-16 rounded-full flex items-center justify-center text-xl font-bold flex-shrink-0"
-          style={{ background: '#FDEDEC', color: '#C0392B' }}
-        >
-          {initials}
-        </div>
-        <div>
-          <p className="text-lg font-bold text-gray-900">
-            {user?.first_name} {user?.last_name}
-          </p>
-          <p className="text-sm text-gray-500">{user?.email}</p>
-          <span
-            className="inline-block mt-1 text-xs font-semibold px-2.5 py-0.5 rounded-full"
+      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 sm:p-6 mb-6">
+        <div className="flex items-start gap-4 sm:gap-5">
+          <div
+            className="w-14 h-14 sm:w-16 sm:h-16 rounded-full flex items-center justify-center text-lg sm:text-xl font-bold flex-shrink-0"
             style={{ background: '#FDEDEC', color: '#C0392B' }}
           >
-            {user?.role?.name || 'Sin rol'}
-          </span>
+            {initials}
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-base sm:text-lg font-bold text-gray-900 break-words">
+              {user?.first_name} {user?.last_name}
+            </p>
+            <p className="text-sm text-gray-500 break-all">{user?.email}</p>
+            <span
+              className="inline-block mt-1.5 text-xs font-semibold px-2.5 py-0.5 rounded-full"
+              style={{ background: '#FDEDEC', color: '#C0392B' }}
+            >
+              {user?.role?.name || 'Sin rol'}
+            </span>
+          </div>
         </div>
-        <div className="ml-auto text-right">
+        <div className="mt-4 pt-4 border-t border-gray-100 flex items-center justify-between">
           <p className="text-xs text-gray-400">Código universitario</p>
           <p className="text-sm font-mono font-semibold text-gray-700">{user?.university_code}</p>
         </div>
       </div>
 
       {/* Formulario de edición */}
-      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
+      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 sm:p-6">
         <h3 className="text-sm font-semibold text-gray-700 mb-5 uppercase tracking-wide">
           Editar información
         </h3>
@@ -142,7 +144,7 @@ export default function ProfilePage() {
             </div>
           )}
 
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1.5">Nombres</label>
               <input
@@ -184,11 +186,11 @@ export default function ProfilePage() {
             />
           </div>
 
-          <div className="flex justify-end pt-2">
+          <div className="flex flex-col sm:flex-row sm:justify-end pt-2">
             <button
               type="submit"
               disabled={saving}
-              className="px-6 py-2.5 rounded-xl text-white font-semibold text-sm transition-all"
+              className="w-full sm:w-auto px-6 py-2.5 rounded-xl text-white font-semibold text-sm transition-all"
               style={{ background: saving ? '#922B21' : '#C0392B', opacity: saving ? 0.7 : 1 }}
               onMouseEnter={(e) => !saving && (e.currentTarget.style.background = '#922B21')}
               onMouseLeave={(e) => !saving && (e.currentTarget.style.background = '#C0392B')}

@@ -148,16 +148,16 @@ export default function AdminSpacesPage() {
   }
 
   return (
-    <div className="p-8">
+    <div className="p-4 sm:p-8">
       {/* Encabezado */}
-      <div className="flex items-center justify-between mb-8">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-6 sm:mb-8 gap-3">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Gestión de Espacios</h1>
+          <h1 className="text-xl sm:text-2xl font-bold text-gray-900">Gestión de Espacios</h1>
           <p className="text-gray-500 text-sm mt-1">Administra el inventario de espacios universitarios</p>
         </div>
         <button
           onClick={openCreate}
-          className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-white text-sm font-semibold transition-all"
+          className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-white text-sm font-semibold transition-all w-full sm:w-auto"
           style={{ background: '#C0392B' }}
           onMouseEnter={(e) => (e.currentTarget.style.background = '#922B21')}
           onMouseLeave={(e) => (e.currentTarget.style.background = '#C0392B')}
@@ -179,23 +179,23 @@ export default function AdminSpacesPage() {
       )}
 
       {/* Stats */}
-      <div className="grid grid-cols-4 gap-4 mb-8">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4 mb-6 sm:mb-8">
         {[
           { label: 'Total espacios', value: stats.total, color: '#1A1A2E' },
           { label: 'Aulas', value: stats.aulas, color: '#1A5276' },
           { label: 'Laboratorios', value: stats.laboratorios, color: '#1E8449' },
           { label: 'En mantenimiento', value: stats.mantenimiento, color: '#C0392B' },
         ].map((s) => (
-          <div key={s.label} className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5">
-            <p className="text-sm text-gray-500">{s.label}</p>
-            <p className="text-3xl font-bold mt-1" style={{ color: s.color }}>{s.value}</p>
+          <div key={s.label} className="bg-white rounded-2xl shadow-sm border border-gray-100 p-3 sm:p-5">
+            <p className="text-xs sm:text-sm text-gray-500 leading-tight">{s.label}</p>
+            <p className="text-2xl sm:text-3xl font-bold mt-1" style={{ color: s.color }}>{s.value}</p>
           </div>
         ))}
       </div>
 
       {/* Filtros */}
-      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5 mb-6">
-        <div className="flex gap-4">
+      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 sm:p-5 mb-6">
+        <div className="flex flex-col lg:flex-row gap-3">
           <div className="flex-1 relative">
             <svg className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400" width="16" height="16" viewBox="0 0 16 16" fill="none">
               <circle cx="7" cy="7" r="5" stroke="currentColor" strokeWidth="1.5" />
@@ -209,12 +209,12 @@ export default function AdminSpacesPage() {
               className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-gray-200 text-sm focus:outline-none focus:border-red-400 focus:ring-2 focus:ring-red-100"
             />
           </div>
-          <div className="flex gap-1 bg-gray-100 rounded-xl p-1">
+          <div className="flex gap-1 bg-gray-100 rounded-xl p-1 overflow-x-auto">
             {TYPES.map((t) => (
               <button
                 key={t}
                 onClick={() => setTypeFilter(t)}
-                className="px-3 py-1.5 rounded-lg text-sm font-medium transition-all"
+                className="px-3 py-1.5 rounded-lg text-sm font-medium transition-all whitespace-nowrap flex-shrink-0"
                 style={typeFilter === t ? { background: '#C0392B', color: 'white' } : { color: '#6B7280' }}
               >
                 {t}
@@ -224,8 +224,9 @@ export default function AdminSpacesPage() {
         </div>
       </div>
 
-      {/* Tabla */}
+      {/* Tabla (desktop) y cards (móvil) */}
       <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+        <div className="hidden lg:block overflow-x-auto">
         <table className="w-full">
           <thead>
             <tr style={{ background: '#F9FAFB', borderBottom: '1px solid #F3F4F6' }}>
@@ -315,9 +316,70 @@ export default function AdminSpacesPage() {
             )}
           </tbody>
         </table>
+        </div>
+
+        {/* Cards móvil/tablet */}
+        <div className="lg:hidden divide-y">
+          {loading ? (
+            <div className="p-8 text-center text-gray-400 text-sm">Cargando...</div>
+          ) : spaces.length === 0 ? (
+            <div className="p-8 text-center text-gray-400 text-sm">No se encontraron espacios</div>
+          ) : (
+            spaces.map((space) => {
+              const tc = typeColors[space.space_type] || typeColors.Aula
+              const st = statusLabels[space.status] || statusLabels.inactive
+              return (
+                <div key={space.id} className="p-4 space-y-2">
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="min-w-0 flex-1">
+                      <p className="text-sm font-semibold text-gray-900 truncate">{space.name}</p>
+                      <p className="text-xs text-gray-500 font-mono">{space.code}</p>
+                      {space.area?.name && (
+                        <p className="text-xs text-gray-400 truncate">{space.area.name}</p>
+                      )}
+                    </div>
+                    <div className="flex flex-col gap-1 items-end flex-shrink-0">
+                      <span
+                        className="text-xs font-semibold px-2 py-0.5 rounded-full"
+                        style={{ background: tc.bg, color: tc.color, border: `1px solid ${tc.border}` }}
+                      >
+                        {space.space_type}
+                      </span>
+                      <span
+                        className="inline-flex items-center gap-1 text-xs font-semibold px-2 py-0.5 rounded-full"
+                        style={{ background: st.bg, color: st.color }}
+                      >
+                        <span className="w-1.5 h-1.5 rounded-full inline-block" style={{ background: st.color }} />
+                        {st.label}
+                      </span>
+                    </div>
+                  </div>
+                  <p className="text-xs text-gray-500">Capacidad: <span className="font-semibold">{space.capacity}</span></p>
+                  <div className="flex gap-2 pt-1">
+                    <button
+                      onClick={() => openEdit(space)}
+                      className="flex-1 text-xs font-medium px-3 py-1.5 rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50"
+                    >
+                      Editar
+                    </button>
+                    {space.is_active !== false && (
+                      <button
+                        onClick={() => handleDelete(space)}
+                        className="flex-1 text-xs font-medium px-3 py-1.5 rounded-lg border"
+                        style={{ borderColor: '#F1948A', color: '#C0392B' }}
+                      >
+                        Desactivar
+                      </button>
+                    )}
+                  </div>
+                </div>
+              )
+            })
+          )}
+        </div>
 
         <div
-          className="px-6 py-3 text-xs text-gray-400"
+          className="px-4 sm:px-6 py-3 text-xs text-gray-400"
           style={{ borderTop: '1px solid #F9FAFB' }}
         >
           Mostrando {spaces.length} de {total} espacios
@@ -327,7 +389,7 @@ export default function AdminSpacesPage() {
       {/* Modal crear/editar */}
       {showModal && (
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl shadow-2xl max-w-lg w-full p-8 max-h-[90vh] overflow-y-auto">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-lg w-full p-5 sm:p-8 max-h-[90vh] overflow-y-auto">
             <h3 className="text-lg font-bold text-gray-900 mb-6">
               {editSpace ? 'Editar espacio' : 'Agregar espacio'}
             </h3>
@@ -342,7 +404,7 @@ export default function AdminSpacesPage() {
                 </div>
               )}
 
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1.5">Nombre</label>
                   <input
@@ -378,7 +440,7 @@ export default function AdminSpacesPage() {
                 />
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1.5">Tipo</label>
                   <select
@@ -405,7 +467,7 @@ export default function AdminSpacesPage() {
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1.5">Piso</label>
                   <input

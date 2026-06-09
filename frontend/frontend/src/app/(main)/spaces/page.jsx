@@ -108,17 +108,17 @@ export default function SpacesPage() {
 
   return (
     <div>
-      <main className="max-w-7xl mx-auto px-6 py-8">
-        <div className="mb-8 flex items-center justify-between">
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 py-6 sm:py-8">
+        <div className="mb-6 sm:mb-8 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
           <div>
-            <h1 className="text-2xl font-bold text-gray-900">Catálogo de Espacios</h1>
-            <p className="text-gray-500 mt-1">
+            <h1 className="text-xl sm:text-2xl font-bold text-gray-900">Catálogo de Espacios</h1>
+            <p className="text-gray-500 mt-1 text-sm">
               Consulta la disponibilidad y reserva el espacio que necesitas
             </p>
           </div>
           <button
             onClick={() => setShowAdv((v) => !v)}
-            className="px-4 py-2 rounded-xl text-sm font-medium border hover:bg-gray-50"
+            className="px-4 py-2 rounded-xl text-sm font-medium border hover:bg-gray-50 w-full sm:w-auto"
             style={hasAdvFilters ? { background: '#C0392B', color: 'white', border: 'none' } : {}}
           >
             {showAdv ? '✕ Cerrar filtros' : hasAdvFilters ? `✓ Filtros activos` : '⚙ Filtros avanzados'}
@@ -126,8 +126,8 @@ export default function SpacesPage() {
         </div>
 
         {/* Barra principal */}
-        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5 mb-4">
-          <div className="flex flex-col sm:flex-row gap-4">
+        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 sm:p-5 mb-4">
+          <div className="flex flex-col lg:flex-row gap-3 lg:gap-4">
             <div className="flex-1 relative">
               <svg className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400" width="16" height="16" viewBox="0 0 16 16" fill="none">
                 <circle cx="7" cy="7" r="5" stroke="currentColor" strokeWidth="1.5" />
@@ -141,25 +141,25 @@ export default function SpacesPage() {
                 className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-gray-200 text-sm outline-none focus:border-red-400 focus:ring-2 focus:ring-red-100"
               />
             </div>
-            <div className="flex gap-2 flex-wrap">
-              <div className="flex gap-1 bg-gray-100 rounded-xl p-1">
+            <div className="flex gap-2 flex-wrap overflow-x-auto -mx-1 px-1">
+              <div className="flex gap-1 bg-gray-100 rounded-xl p-1 flex-shrink-0">
                 {types.map((t) => (
                   <button
                     key={t}
                     onClick={() => setTypeFilter(t)}
-                    className="px-3 py-1.5 rounded-lg text-sm font-medium"
+                    className="px-3 py-1.5 rounded-lg text-sm font-medium whitespace-nowrap"
                     style={typeFilter === t ? { background: '#C0392B', color: 'white' } : { color: '#6B7280' }}
                   >
                     {t}
                   </button>
                 ))}
               </div>
-              <div className="flex gap-1 bg-gray-100 rounded-xl p-1">
+              <div className="flex gap-1 bg-gray-100 rounded-xl p-1 flex-shrink-0">
                 {statuses.map((st) => (
                   <button
                     key={st}
                     onClick={() => setStatusFilter(st)}
-                    className="px-3 py-1.5 rounded-lg text-sm font-medium"
+                    className="px-3 py-1.5 rounded-lg text-sm font-medium whitespace-nowrap"
                     style={statusFilter === st ? { background: '#C0392B', color: 'white' } : { color: '#6B7280' }}
                   >
                     {st}

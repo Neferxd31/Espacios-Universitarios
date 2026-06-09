@@ -216,7 +216,7 @@ export default function AdminReservationsPage() {
   const statuses = ['Todos', 'Pendiente', 'Aprobada', 'Rechazada', 'Cancelada', 'Confirmada']
 
   return (
-    <div className="p-8">
+    <div className="p-4 sm:p-8">
       {reviewing && (
         <ReviewModal
           reservation={reviewing}
@@ -228,25 +228,25 @@ export default function AdminReservationsPage() {
       )}
 
       {/* Encabezado */}
-      <div className="mb-8">
-        <h1 className="text-2xl font-bold text-gray-900">Supervisión de Reservas</h1>
+      <div className="mb-6 sm:mb-8">
+        <h1 className="text-xl sm:text-2xl font-bold text-gray-900">Supervisión de Reservas</h1>
         <p className="text-gray-500 text-sm mt-1">
           Aprueba, rechaza y monitorea todas las reservas del sistema
         </p>
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-4 gap-4 mb-8">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4 mb-6 sm:mb-8">
         {[
           { label: 'Pendientes',  value: pendingCount,   color: '#9A7D0A', sub: 'requieren revisión' },
           { label: 'Aprobadas',   value: approvedCount,  color: '#1E8449', sub: 'confirmadas' },
           { label: 'Rechazadas',  value: rejectedCount,  color: '#C0392B', sub: 'denegadas' },
           { label: 'Canceladas',  value: cancelledCount, color: '#6B7280', sub: 'por el usuario' },
         ].map((stat) => (
-          <div key={stat.label} className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5">
-            <p className="text-sm text-gray-500">{stat.label}</p>
-            <p className="text-3xl font-bold mt-1" style={{ color: stat.color }}>{stat.value}</p>
-            <p className="text-xs text-gray-400 mt-1">{stat.sub}</p>
+          <div key={stat.label} className="bg-white rounded-2xl shadow-sm border border-gray-100 p-3 sm:p-5">
+            <p className="text-xs sm:text-sm text-gray-500 leading-tight">{stat.label}</p>
+            <p className="text-2xl sm:text-3xl font-bold mt-1" style={{ color: stat.color }}>{stat.value}</p>
+            <p className="text-xs text-gray-400 mt-1 hidden sm:block">{stat.sub}</p>
           </div>
         ))}
       </div>
@@ -275,8 +275,8 @@ export default function AdminReservationsPage() {
       )}
 
       {/* Filtros */}
-      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5 mb-6">
-        <div className="flex flex-col sm:flex-row gap-4">
+      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 sm:p-5 mb-6">
+        <div className="flex flex-col lg:flex-row gap-3 lg:gap-4">
           <div className="flex-1 relative">
             <svg className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400" width="16" height="16" viewBox="0 0 16 16" fill="none">
               <circle cx="7" cy="7" r="5" stroke="currentColor" strokeWidth="1.5" />
@@ -294,14 +294,14 @@ export default function AdminReservationsPage() {
             type="date"
             value={dateFilter}
             onChange={(e) => setDateFilter(e.target.value)}
-            className="px-4 py-2.5 rounded-xl border border-gray-200 text-sm focus:outline-none focus:border-red-400 focus:ring-2 focus:ring-red-100"
+            className="px-4 py-2.5 rounded-xl border border-gray-200 text-sm focus:outline-none focus:border-red-400 focus:ring-2 focus:ring-red-100 w-full lg:w-auto"
           />
-          <div className="flex gap-1 bg-gray-100 rounded-xl p-1 flex-wrap">
+          <div className="flex gap-1 bg-gray-100 rounded-xl p-1 overflow-x-auto">
             {statuses.map((s) => (
               <button
                 key={s}
                 onClick={() => setStatusFilter(s)}
-                className="px-3 py-1.5 rounded-lg text-sm font-medium transition-all"
+                className="px-3 py-1.5 rounded-lg text-sm font-medium transition-all whitespace-nowrap flex-shrink-0"
                 style={statusFilter === s ? { background: '#C0392B', color: 'white' } : { color: '#6B7280' }}
               >
                 {s}
@@ -311,13 +311,13 @@ export default function AdminReservationsPage() {
         </div>
       </div>
 
-      {/* Tabla */}
-      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+      {/* Tabla con scroll horizontal */}
+      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-x-auto">
         {loading ? (
           <div className="py-16 text-center text-gray-400 text-sm">Cargando reservas...</div>
         ) : (
           <>
-            <table className="w-full">
+            <table className="w-full min-w-[900px]">
               <thead>
                 <tr style={{ background: '#F9FAFB', borderBottom: '1px solid #F3F4F6' }}>
                   {['Usuario', 'Espacio', 'Fecha', 'Horario', 'Estado', 'Notas', 'Solicitud', 'Acciones'].map((h) => (
