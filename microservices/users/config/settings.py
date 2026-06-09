@@ -99,7 +99,7 @@ if _database_url:
     DATABASES = {
         'default': dj_database_url.config(
             default=_database_url,
-            conn_max_age=600,
+            conn_max_age=1800,  # reusa conexiones 30 min — clave con Railway proxy
             conn_health_checks=True,
         )
     }
