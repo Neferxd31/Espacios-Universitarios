@@ -18,10 +18,9 @@ from __future__ import annotations
 
 import json
 import logging
-import os
+import time
 from datetime import datetime, timedelta
 
-import django
 from django.conf import settings
 from django.utils import timezone
 
@@ -34,6 +33,9 @@ from .mailer import (
 from .models import NotificationHistory, ScheduledReminder
 
 logger = logging.getLogger(__name__)
+
+# Bajar verbosidad de pika — solo errores reales en logs
+logging.getLogger('pika').setLevel(logging.WARNING)
 
 RESERVATIONS_EXCHANGE = 'reservations'
 USERS_EXCHANGE = 'users'
@@ -138,13 +140,36 @@ def _handle_password_reset_event(payload: dict) -> None:
   )
 
 
-def run_consumer() -> None:
-  """Bucle de consumo. Bloquea indefinidamente."""
+def _connect_with_retry(max_wait: int = 60):
+  """Conecta a RabbitMQ con backoff exponencial — no spamea logs ni reinicia el contenedor."""
   import pika
 
   params = pika.URLParameters(settings.RABBITMQ_URL)
   params.heartbeat = 60
-  connection = pika.BlockingConnection(params)
+  params.socket_timeout = 5
+
+  delay = 1
+  while True:
+    try:
+      return pika.BlockingConnection(params)
+    except Exception as exc:
+      logger.warning('RabbitMQ no disponible (%s). Reintentando en %ds…', exc, delay)
+      time.sleep(delay)
+      delay = min(delay * 2, max_wait)
+
+
+def run_consumer() -> None:
+  """Bucle de consumo. Bloquea indefinidamente. Reconecta si se cae."""
+  while True:
+    try:
+      _consume_forever()
+    except Exception as exc:
+      logger.error('Consumer cayó (%s). Reconectando en 5s…', exc)
+      time.sleep(5)
+
+
+def _consume_forever() -> None:
+  connection = _connect_with_retry()
   channel = connection.channel()
 
   # Exchange de reservations

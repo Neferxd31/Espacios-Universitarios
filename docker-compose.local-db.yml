@@ -1,0 +1,162 @@
+# ============================================================================
+# Override OPCIONAL para correr Postgres LOCAL en vez de Railway.
+#
+# Uso:
+#   docker compose -f docker-compose.yml -f docker-compose.local-db.yml up -d
+#
+# Cuándo usarlo:
+#   - Desarrollo/pruebas: cada query a Railway tarda 100-300 ms por la latencia
+#     del proxy público. Localmente bajan a <5 ms. La página vuela.
+#
+# Cuándo NO usarlo:
+#   - Cuando necesites datos reales/persistentes en Railway.
+#
+# Datos:
+#   - Se persisten en volúmenes locales (no se pierden al apagar).
+#   - Para borrarlos: docker compose down -v
+# ============================================================================
+
+services:
+  postgres-users:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: localdev
+      POSTGRES_DB: users
+    volumes:
+      - pg-users:/var/lib/postgresql/data
+    networks:
+      - classrooms
+    deploy:
+      resources:
+        limits:
+          memory: 192M
+
+  postgres-spaces:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: localdev
+      POSTGRES_DB: spaces
+    volumes:
+      - pg-spaces:/var/lib/postgresql/data
+    networks:
+      - classrooms
+    deploy:
+      resources:
+        limits:
+          memory: 192M
+
+  postgres-reservations:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: localdev
+      POSTGRES_DB: reservations
+    volumes:
+      - pg-reservations:/var/lib/postgresql/data
+    networks:
+      - classrooms
+    deploy:
+      resources:
+        limits:
+          memory: 192M
+
+  postgres-notifications:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: localdev
+      POSTGRES_DB: notifications
+    volumes:
+      - pg-notifications:/var/lib/postgresql/data
+    networks:
+      - classrooms
+    deploy:
+      resources:
+        limits:
+          memory: 192M
+
+  postgres-reports:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: localdev
+      POSTGRES_DB: reports
+    volumes:
+      - pg-reports:/var/lib/postgresql/data
+    networks:
+      - classrooms
+    deploy:
+      resources:
+        limits:
+          memory: 192M
+
+  # ── Override de los microservicios para apuntar a las DBs locales ────────
+  users:
+    environment:
+      DATABASE_URL: postgresql://postgres:localdev@postgres-users:5432/users
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      postgres-users:
+        condition: service_started
+
+  spaces:
+    environment:
+      DATABASE_URL: postgresql://postgres:localdev@postgres-spaces:5432/spaces
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      postgres-spaces:
+        condition: service_started
+
+  reservations:
+    environment:
+      DATABASE_URL: postgresql://postgres:localdev@postgres-reservations:5432/reservations
+    depends_on:
+      users:
+        condition: service_started
+      spaces:
+        condition: service_started
+      rabbitmq:
+        condition: service_healthy
+      postgres-reservations:
+        condition: service_started
+
+  notifications:
+    environment:
+      DATABASE_URL: postgresql://postgres:localdev@postgres-notifications:5432/notifications
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      postgres-notifications:
+        condition: service_started
+
+  notifications-worker:
+    environment:
+      DATABASE_URL: postgresql://postgres:localdev@postgres-notifications:5432/notifications
+
+  notifications-reminder-cron:
+    environment:
+      DATABASE_URL: postgresql://postgres:localdev@postgres-notifications:5432/notifications
+
+  reports:
+    environment:
+      DATABASE_URL: postgresql://postgres:localdev@postgres-reports:5432/reports
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      postgres-reports:
+        condition: service_started
+
+  reports-worker:
+    environment:
+      DATABASE_URL: postgresql://postgres:localdev@postgres-reports:5432/reports
+
+volumes:
+  pg-users:
+  pg-spaces:
+  pg-reservations:
+  pg-notifications:
+  pg-reports:

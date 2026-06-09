@@ -3,37 +3,106 @@ import { getAccessToken, clearSession } from './authStorage'
 // Un solo punto de entrada — el API Gateway enruta internamente a cada MS
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
 
-async function request(path, { method = 'GET', body, auth = false } = {}) {
-  const headers = { 'Content-Type': 'application/json' }
+// ---------------------------------------------------------------------------
+// Cache en memoria + dedup de requests en vuelo
+//   - Cachea respuestas GET por TTL configurable.
+//   - Si dos componentes piden la misma URL al mismo tiempo, solo dispara
+//     un fetch (in-flight dedup).
+//   - Las mutaciones (POST/PATCH/DELETE) limpian el cache afectado.
+// ---------------------------------------------------------------------------
+const DEFAULT_TTL_MS = 30_000
+const cache = new Map() // key → { data, expiresAt }
+const inFlight = new Map() // key → Promise
 
+function cacheKey(path, auth) {
+  return `${auth ? 'A' : 'P'}:${path}`
+}
+
+function invalidatePrefix(prefix) {
+  for (const key of cache.keys()) {
+    if (key.includes(prefix)) cache.delete(key)
+  }
+}
+
+async function request(
+  path,
+  { method = 'GET', body, auth = false, cacheTtl, skipCache = false } = {},
+) {
+  const isGet = method === 'GET'
+  const key = cacheKey(path, auth)
+
+  if (isGet && !skipCache) {
+    // Cache hit
+    const cached = cache.get(key)
+    if (cached && cached.expiresAt > Date.now()) {
+      return cached.data
+    }
+    // Request ya en vuelo → reusar
+    if (inFlight.has(key)) {
+      return inFlight.get(key)
+    }
+  }
+
+  const headers = { 'Content-Type': 'application/json' }
   if (auth) {
     const token = getAccessToken()
     if (token) headers['Authorization'] = `Bearer ${token}`
   }
 
-  const res = await fetch(`${API_URL}${path}`, {
-    method,
-    headers,
-    body: body ? JSON.stringify(body) : undefined,
-  })
+  const promise = (async () => {
+    const res = await fetch(`${API_URL}${path}`, {
+      method,
+      headers,
+      body: body ? JSON.stringify(body) : undefined,
+    })
 
-  // Si el token expiró, limpiar sesión
-  if (res.status === 401) {
-    clearSession()
+    if (res.status === 401) clearSession()
+
+    const data = await res.json().catch(() => ({}))
+
+    if (!res.ok) {
+      const message =
+        data?.detail ||
+        data?.error ||
+        Object.values(data).flat().join(' ') ||
+        `Error ${res.status}`
+      throw new Error(message)
+    }
+    return data
+  })()
+
+  if (isGet && !skipCache) {
+    inFlight.set(key, promise)
+    try {
+      const data = await promise
+      cache.set(key, {
+        data,
+        expiresAt: Date.now() + (cacheTtl ?? DEFAULT_TTL_MS),
+      })
+      return data
+    } finally {
+      inFlight.delete(key)
+    }
   }
 
-  const data = await res.json().catch(() => ({}))
+  const data = await promise
 
-  if (!res.ok) {
-    const message =
-      data?.detail ||
-      data?.error ||
-      Object.values(data).flat().join(' ') ||
-      `Error ${res.status}`
-    throw new Error(message)
+  // Las mutaciones invalidan cache relacionado al recurso modificado
+  if (!isGet) {
+    const segments = path.split('/').filter(Boolean)
+    if (segments.length >= 3) {
+      // ej: /api/v1/reservations/abc/ → invalida cualquier GET de /reservations/
+      invalidatePrefix(`/${segments[0]}/${segments[1]}/${segments[2]}`)
+    }
   }
 
   return data
+}
+
+// Expuesto para casos puntuales (logout, refresh manual, etc)
+export function clearApiCache() {
+  cache.clear()
+  inFlight.clear()
 }
 
 // ---------------------------------------------------------------------------

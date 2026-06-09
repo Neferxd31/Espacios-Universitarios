@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import json
 import logging
+import time
 
 from django.conf import settings
 
@@ -14,6 +15,7 @@ from .models import AuditLog
 from .stats import record_event
 
 logger = logging.getLogger(__name__)
+logging.getLogger('pika').setLevel(logging.WARNING)
 
 RESERVATIONS_EXCHANGE = 'reservations'
 RESERVATIONS_QUEUE = 'reports.reservations'
@@ -33,12 +35,32 @@ def _handle_event(event_type: str, payload: dict) -> None:
     )
 
 
-def run_consumer() -> None:
+def _connect_with_retry(max_wait: int = 60):
   import pika
-
   params = pika.URLParameters(settings.RABBITMQ_URL)
   params.heartbeat = 60
-  connection = pika.BlockingConnection(params)
+  params.socket_timeout = 5
+  delay = 1
+  while True:
+    try:
+      return pika.BlockingConnection(params)
+    except Exception as exc:
+      logger.warning('RabbitMQ no disponible (%s). Reintentando en %ds…', exc, delay)
+      time.sleep(delay)
+      delay = min(delay * 2, max_wait)
+
+
+def run_consumer() -> None:
+  while True:
+    try:
+      _consume_forever()
+    except Exception as exc:
+      logger.error('Consumer cayó (%s). Reconectando en 5s…', exc)
+      time.sleep(5)
+
+
+def _consume_forever() -> None:
+  connection = _connect_with_retry()
   channel = connection.channel()
 
   channel.exchange_declare(
