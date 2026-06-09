@@ -11,6 +11,7 @@ from rest_framework.views import APIView
 from .auth import get_token_payload, require_admin
 from .models import AuditLog, DailyUsageStats
 from .serializers import AuditLogSerializer
+from .services import fetch_spaces_map
 
 
 @api_view(['GET'])
@@ -207,20 +208,74 @@ class ExportCSVAPIView(APIView):
     except ValueError:
       return Response({'detail': 'Fechas inválidas.'}, status=400)
 
-    qs = DailyUsageStats.objects.filter(date__gte=start, date__lte=end).order_by('date')
+    qs = DailyUsageStats.objects.filter(date__gte=start, date__lte=end).order_by('date', 'space_id')
+    spaces_map = fetch_spaces_map()
 
-    buf = io.StringIO()
-    writer = csv.writer(buf)
-    writer.writerow(['date', 'space_id', 'total', 'approved', 'cancelled', 'rejected', 'hours', 'peak_hour'])
+    # Sumario por espacio
+    summary = {}
     for r in qs:
+      sid = str(r.space_id)
+      bucket = summary.setdefault(sid, {
+        'total': 0, 'approved': 0, 'cancelled': 0, 'rejected': 0, 'hours': 0,
+      })
+      bucket['total'] += r.total_reservations
+      bucket['approved'] += r.approved_reservations
+      bucket['cancelled'] += r.cancelled_reservations
+      bucket['rejected'] += r.rejected_reservations
+      bucket['hours'] += r.total_hours
+
+    # Totales generales
+    grand = {'total': 0, 'approved': 0, 'cancelled': 0, 'rejected': 0, 'hours': 0}
+    for b in summary.values():
+      for k in grand:
+        grand[k] += b[k]
+
+    # BOM para que Excel detecte UTF-8 con tildes
+    buf = io.StringIO()
+    buf.write('﻿')
+    writer = csv.writer(buf, delimiter=';')
+
+    writer.writerow(['REPORTE DE USO — ESPACIOS UNIVERSITARIOS UFPS'])
+    writer.writerow([f'Periodo: {start.isoformat()} a {end.isoformat()}'])
+    writer.writerow([])
+
+    writer.writerow(['RESUMEN GENERAL'])
+    writer.writerow(['Total reservas', 'Aprobadas', 'Canceladas', 'Rechazadas', 'Horas totales'])
+    writer.writerow([grand['total'], grand['approved'], grand['cancelled'], grand['rejected'], grand['hours']])
+    writer.writerow([])
+
+    writer.writerow(['RESUMEN POR ESPACIO'])
+    writer.writerow(['Espacio', 'Código', 'Capacidad', 'Tipo', 'Total', 'Aprobadas', 'Canceladas', 'Rechazadas', 'Horas'])
+    for sid, b in sorted(summary.items(), key=lambda kv: -kv[1]['total']):
+      info = spaces_map.get(sid, {})
       writer.writerow([
-        r.date.isoformat(), str(r.space_id), r.total_reservations,
-        r.approved_reservations, r.cancelled_reservations, r.rejected_reservations,
-        r.total_hours, r.peak_hour or '',
+        info.get('name', '—'),
+        f'{(info.get("area_code") or "").upper()}-{info.get("code") or ""}'.strip('-'),
+        info.get('capacity', ''),
+        info.get('type', ''),
+        b['total'], b['approved'], b['cancelled'], b['rejected'], b['hours'],
+      ])
+    writer.writerow([])
+
+    writer.writerow(['DETALLE DIARIO'])
+    writer.writerow(['Fecha', 'Espacio', 'Código', 'Total', 'Aprobadas', 'Canceladas', 'Rechazadas', 'Horas', 'Pico hora'])
+    for r in qs:
+      sid = str(r.space_id)
+      info = spaces_map.get(sid, {})
+      writer.writerow([
+        r.date.isoformat(),
+        info.get('name', '—'),
+        f'{(info.get("area_code") or "").upper()}-{info.get("code") or ""}'.strip('-'),
+        r.total_reservations,
+        r.approved_reservations,
+        r.cancelled_reservations,
+        r.rejected_reservations,
+        r.total_hours,
+        f'{r.peak_hour:02d}:00' if r.peak_hour is not None else '',
       ])
 
-    response = HttpResponse(buf.getvalue(), content_type='text/csv')
-    response['Content-Disposition'] = f'attachment; filename="report_{start}_{end}.csv"'
+    response = HttpResponse(buf.getvalue(), content_type='text/csv; charset=utf-8')
+    response['Content-Disposition'] = f'attachment; filename="reporte_{start}_{end}.csv"'
     return response
 
 
@@ -235,42 +290,153 @@ class ExportPDFAPIView(APIView):
       return Response({'detail': 'Fechas inválidas.'}, status=400)
 
     try:
-      from reportlab.lib.pagesizes import LETTER
-      from reportlab.pdfgen import canvas
+      from reportlab.lib import colors
+      from reportlab.lib.pagesizes import A4, landscape
+      from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+      from reportlab.lib.units import mm
+      from reportlab.platypus import (
+        SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, PageBreak,
+      )
     except ImportError:
       return Response({'detail': 'reportlab no disponible.'}, status=503)
 
-    qs = DailyUsageStats.objects.filter(date__gte=start, date__lte=end).order_by('date')
+    qs = list(
+      DailyUsageStats.objects.filter(date__gte=start, date__lte=end).order_by('date', 'space_id')
+    )
+    spaces_map = fetch_spaces_map()
+
+    # Agregados
+    summary = {}
+    grand = {'total': 0, 'approved': 0, 'cancelled': 0, 'rejected': 0, 'hours': 0}
+    for r in qs:
+      sid = str(r.space_id)
+      b = summary.setdefault(sid, {'total': 0, 'approved': 0, 'cancelled': 0, 'rejected': 0, 'hours': 0})
+      b['total'] += r.total_reservations
+      b['approved'] += r.approved_reservations
+      b['cancelled'] += r.cancelled_reservations
+      b['rejected'] += r.rejected_reservations
+      b['hours'] += r.total_hours
+      for k in grand:
+        grand[k] += b[k] if False else 0  # se acumula abajo
+
+    grand = {'total': 0, 'approved': 0, 'cancelled': 0, 'rejected': 0, 'hours': 0}
+    for b in summary.values():
+      for k in grand:
+        grand[k] += b[k]
 
     buf = io.BytesIO()
-    c = canvas.Canvas(buf, pagesize=LETTER)
-    width, height = LETTER
+    doc = SimpleDocTemplate(
+      buf, pagesize=landscape(A4),
+      leftMargin=15 * mm, rightMargin=15 * mm,
+      topMargin=15 * mm, bottomMargin=15 * mm,
+      title=f'Reporte {start} a {end}',
+    )
 
-    c.setFont('Helvetica-Bold', 14)
-    c.drawString(40, height - 50, f'Reporte de uso — {start} a {end}')
+    styles = getSampleStyleSheet()
+    h1 = ParagraphStyle(
+      'h1', parent=styles['Heading1'], fontSize=18, textColor=colors.HexColor('#922B21'),
+      spaceAfter=4,
+    )
+    h2 = ParagraphStyle(
+      'h2', parent=styles['Heading2'], fontSize=12, textColor=colors.HexColor('#1A1A2E'),
+      spaceBefore=10, spaceAfter=6,
+    )
+    meta = ParagraphStyle('meta', parent=styles['Normal'], fontSize=9, textColor=colors.grey)
+    cell = ParagraphStyle('cell', parent=styles['Normal'], fontSize=9, leading=11)
 
-    c.setFont('Helvetica', 10)
-    y = height - 90
-    c.drawString(40, y, 'Fecha       | Espacio                              | Total | Aprob. | Canc. | Horas')
-    y -= 15
+    story = []
+    story.append(Paragraph('Reporte de uso de espacios — UFPS', h1))
+    story.append(Paragraph(f'Periodo: {start.isoformat()} → {end.isoformat()}', meta))
+    story.append(Spacer(1, 8))
+
+    # ── Resumen general
+    story.append(Paragraph('Resumen general', h2))
+    summary_data = [
+      ['Total reservas', 'Aprobadas', 'Canceladas', 'Rechazadas', 'Horas totales'],
+      [grand['total'], grand['approved'], grand['cancelled'], grand['rejected'], grand['hours']],
+    ]
+    t = Table(summary_data, colWidths=[45 * mm] * 5)
+    t.setStyle(TableStyle([
+      ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#922B21')),
+      ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
+      ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+      ('FONTNAME', (0, 1), (-1, 1), 'Helvetica-Bold'),
+      ('FONTSIZE', (0, 1), (-1, 1), 14),
+      ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+      ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+      ('GRID', (0, 0), (-1, -1), 0.4, colors.HexColor('#D5D8DC')),
+      ('BOTTOMPADDING', (0, 0), (-1, -1), 6),
+      ('TOPPADDING', (0, 0), (-1, -1), 6),
+    ]))
+    story.append(t)
+
+    # ── Resumen por espacio
+    story.append(Paragraph('Resumen por espacio', h2))
+    rows = [['Espacio', 'Código', 'Capacidad', 'Tipo', 'Total', 'Aprob.', 'Canc.', 'Rech.', 'Horas']]
+    for sid, b in sorted(summary.items(), key=lambda kv: -kv[1]['total']):
+      info = spaces_map.get(sid, {})
+      label = info.get('name') or '—'
+      code = f'{(info.get("area_code") or "").upper()}-{info.get("code") or ""}'.strip('-')
+      rows.append([
+        Paragraph(label, cell),
+        code or '—',
+        info.get('capacity', '') or '',
+        info.get('type', '') or '',
+        b['total'], b['approved'], b['cancelled'], b['rejected'], b['hours'],
+      ])
+    t = Table(rows, colWidths=[55 * mm, 25 * mm, 22 * mm, 28 * mm, 18 * mm, 18 * mm, 18 * mm, 18 * mm, 18 * mm])
+    t.setStyle(_table_style())
+    story.append(t)
+
+    # ── Detalle diario (paginado)
+    story.append(PageBreak())
+    story.append(Paragraph('Detalle diario', h2))
+    detail = [['Fecha', 'Espacio', 'Código', 'Total', 'Aprob.', 'Canc.', 'Rech.', 'Horas', 'Pico']]
     for r in qs:
-      if y < 60:
-        c.showPage()
-        y = height - 60
-        c.setFont('Helvetica', 10)
-      line = (
-        f'{r.date.isoformat()} | {str(r.space_id)[:36]} | '
-        f'{r.total_reservations:>5} | {r.approved_reservations:>6} | '
-        f'{r.cancelled_reservations:>5} | {r.total_hours:>5}'
-      )
-      c.drawString(40, y, line)
-      y -= 13
+      sid = str(r.space_id)
+      info = spaces_map.get(sid, {})
+      label = info.get('name') or '—'
+      code = f'{(info.get("area_code") or "").upper()}-{info.get("code") or ""}'.strip('-')
+      detail.append([
+        r.date.isoformat(),
+        Paragraph(label, cell),
+        code or '—',
+        r.total_reservations,
+        r.approved_reservations,
+        r.cancelled_reservations,
+        r.rejected_reservations,
+        r.total_hours,
+        f'{r.peak_hour:02d}:00' if r.peak_hour is not None else '—',
+      ])
+    t = Table(detail, colWidths=[25 * mm, 65 * mm, 22 * mm, 18 * mm, 18 * mm, 18 * mm, 18 * mm, 18 * mm, 18 * mm], repeatRows=1)
+    t.setStyle(_table_style())
+    story.append(t)
 
-    c.showPage()
-    c.save()
+    doc.build(story)
     pdf = buf.getvalue()
     buf.close()
 
     response = HttpResponse(pdf, content_type='application/pdf')
-    response['Content-Disposition'] = f'attachment; filename="report_{start}_{end}.pdf"'
+    response['Content-Disposition'] = f'attachment; filename="reporte_{start}_{end}.pdf"'
     return response
+
+
+def _table_style():
+  from reportlab.lib import colors
+  from reportlab.platypus import TableStyle
+  return TableStyle([
+    ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#1A1A2E')),
+    ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
+    ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+    ('FONTSIZE', (0, 0), (-1, 0), 9),
+    ('FONTSIZE', (0, 1), (-1, -1), 8),
+    ('ALIGN', (0, 0), (-1, 0), 'CENTER'),
+    ('ALIGN', (3, 1), (-1, -1), 'CENTER'),
+    ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+    ('GRID', (0, 0), (-1, -1), 0.3, colors.HexColor('#D5D8DC')),
+    ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, colors.HexColor('#FAFAFA')]),
+    ('LEFTPADDING', (0, 0), (-1, -1), 4),
+    ('RIGHTPADDING', (0, 0), (-1, -1), 4),
+    ('TOPPADDING', (0, 0), (-1, -1), 4),
+    ('BOTTOMPADDING', (0, 0), (-1, -1), 4),
+  ])

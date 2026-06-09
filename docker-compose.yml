@@ -211,6 +211,7 @@ services:
       DATABASE_URL: ${REPORTS_DATABASE_URL}
       JWT_SECRET_KEY: ${JWT_SECRET_KEY:-dev-jwt-secret-change-in-production}
       RABBITMQ_URL: amqp://${RABBITMQ_USER:-guest}:${RABBITMQ_PASS:-guest}@rabbitmq:5672/
+      SPACES_SERVICE_URL: http://spaces:8000
     depends_on:
       rabbitmq:
         condition: service_healthy
