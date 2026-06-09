@@ -1,7 +1,7 @@
 "use client"
 
-import { useState } from "react"
-import { reportsApi } from "@/lib/apiClient"
+import { useEffect, useMemo, useState } from "react"
+import { reportsApi, spacesApi } from "@/lib/apiClient"
 
 // HU-22 / HU-24 / HU-25 — Reportes con exportación
 export default function ReportesPage() {
@@ -13,8 +13,27 @@ export default function ReportesPage() {
   const [usage, setUsage] = useState(null)
   const [topSpaces, setTopSpaces] = useState([])
   const [heatmap, setHeatmap] = useState({})
+  const [spaces, setSpaces] = useState([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState("")
+
+  // Mapa UUID → "AREA-CODE · Nombre"
+  const spaceById = useMemo(() => {
+    const m = new Map()
+    for (const s of spaces) {
+      const label = `${(s.area?.code || "").toUpperCase()}-${s.code} · ${s.name}`
+      m.set(s.id, label)
+    }
+    return m
+  }, [spaces])
+
+  // Cargar lista de espacios una vez para resolver nombres
+  useEffect(() => {
+    spacesApi
+      .list({ page_size: 100, include_inactive: "true" })
+      .then((data) => setSpaces(data.results || data || []))
+      .catch(() => {})
+  }, [])
 
   const generate = async () => {
     setLoading(true)
@@ -132,7 +151,13 @@ export default function ReportesPage() {
             <tbody>
               {topSpaces.map((s) => (
                 <tr key={s.space_id} className="border-t">
-                  <td className="py-2 font-mono text-xs">{s.space_id}</td>
+                  <td className="py-2">
+                    {spaceById.get(s.space_id) || (
+                      <span className="font-mono text-xs text-gray-400">
+                        {s.space_id}
+                      </span>
+                    )}
+                  </td>
                   <td className="py-2 font-semibold">{s.total}</td>
                   <td className="py-2">{s.hours}</td>
                 </tr>

@@ -1,7 +1,7 @@
 "use client"
 
-import { useEffect, useState } from "react"
-import { reportsApi } from "@/lib/apiClient"
+import { useEffect, useMemo, useState } from "react"
+import { reportsApi, spacesApi } from "@/lib/apiClient"
 
 // HU-23 — Dashboard admin con stats y gráficos simples
 export default function AdminDashboardPage() {
@@ -9,8 +9,17 @@ export default function AdminDashboardPage() {
   const [usage, setUsage] = useState(null)
   const [topSpaces, setTopSpaces] = useState([])
   const [heatmap, setHeatmap] = useState({})
+  const [spaces, setSpaces] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState("")
+
+  const spaceById = useMemo(() => {
+    const m = new Map()
+    for (const s of spaces) {
+      m.set(s.id, `${(s.area?.code || "").toUpperCase()}-${s.code} · ${s.name}`)
+    }
+    return m
+  }, [spaces])
 
   useEffect(() => {
     const today = new Date().toISOString().split("T")[0]
@@ -23,12 +32,14 @@ export default function AdminDashboardPage() {
       reportsApi.usage(monthAgo, today).catch(() => null),
       reportsApi.topSpaces(monthAgo, today, 5).catch(() => ({ top_spaces: [] })),
       reportsApi.heatmap(monthAgo, today).catch(() => ({ hour_distribution: {} })),
+      spacesApi.list({ page_size: 100, include_inactive: "true" }).catch(() => ({ results: [] })),
     ])
-      .then(([s, u, t, h]) => {
+      .then(([s, u, t, h, sp]) => {
         setSummary(s)
         setUsage(u)
         setTopSpaces(t?.top_spaces || [])
         setHeatmap(h?.hour_distribution || {})
+        setSpaces(sp?.results || sp || [])
       })
       .catch((err) => setError(err.message))
       .finally(() => setLoading(false))
@@ -91,13 +102,21 @@ export default function AdminDashboardPage() {
             {topSpaces.map((s) => (
               <li
                 key={s.space_id}
-                className="flex items-center justify-between text-sm border-b last:border-0 py-2"
+                className="flex items-center justify-between text-sm border-b last:border-0 py-2 gap-3"
               >
-                <span className="font-mono text-xs text-gray-500">
-                  {s.space_id.slice(0, 8)}…
+                <span className="flex-1 truncate">
+                  {spaceById.get(s.space_id) || (
+                    <span className="font-mono text-xs text-gray-400">
+                      {s.space_id.slice(0, 8)}…
+                    </span>
+                  )}
                 </span>
-                <span className="font-semibold">{s.total} reservas</span>
-                <span className="text-gray-400">{s.hours} h</span>
+                <span className="font-semibold whitespace-nowrap">
+                  {s.total} reservas
+                </span>
+                <span className="text-gray-400 whitespace-nowrap">
+                  {s.hours} h
+                </span>
               </li>
             ))}
           </ul>
