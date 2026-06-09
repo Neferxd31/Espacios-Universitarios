@@ -91,22 +91,18 @@ export default function ReportesPage() {
         >
           {loading ? "Generando…" : "Generar"}
         </button>
-        <a
-          href={reportsApi.exportCsvUrl(start, end)}
+        <button
+          onClick={() => reportsApi.downloadCsv(start, end).catch((e) => setError(e.message))}
           className="px-4 py-2 rounded-lg border text-sm font-semibold text-gray-700 hover:bg-gray-50"
-          target="_blank"
-          rel="noopener noreferrer"
         >
           ⇩ CSV
-        </a>
-        <a
-          href={reportsApi.exportPdfUrl(start, end)}
+        </button>
+        <button
+          onClick={() => reportsApi.downloadPdf(start, end).catch((e) => setError(e.message))}
           className="px-4 py-2 rounded-lg border text-sm font-semibold text-gray-700 hover:bg-gray-50"
-          target="_blank"
-          rel="noopener noreferrer"
         >
           ⇩ PDF
-        </a>
+        </button>
       </section>
 
       {error && (

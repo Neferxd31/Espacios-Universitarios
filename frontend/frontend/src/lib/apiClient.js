@@ -346,11 +346,47 @@ export const reportsApi = {
   heatmap: (start, end) =>
     request(`/api/v1/reports/heatmap/?start_date=${start}&end_date=${end}`, { auth: true }),
 
-  // URLs directas para descargas (el navegador maneja el blob)
-  exportCsvUrl: (start, end) =>
-    `${API_URL}/api/v1/reports/export/csv/?start_date=${start}&end_date=${end}`,
-  exportPdfUrl: (start, end) =>
-    `${API_URL}/api/v1/reports/export/pdf/?start_date=${start}&end_date=${end}`,
+  // Descargas autenticadas: hace fetch con Bearer, arma blob y dispara descarga
+  downloadCsv: (start, end) =>
+    downloadAuthed(
+      `/api/v1/reports/export/csv/?start_date=${start}&end_date=${end}`,
+      `reporte_${start}_${end}.csv`,
+    ),
+  downloadPdf: (start, end) =>
+    downloadAuthed(
+      `/api/v1/reports/export/pdf/?start_date=${start}&end_date=${end}`,
+      `reporte_${start}_${end}.pdf`,
+    ),
+}
+
+// ---------------------------------------------------------------------------
+// Helper: descarga autenticada → fetch con Bearer + blob + click trigger
+// ---------------------------------------------------------------------------
+async function downloadAuthed(path, filename) {
+  const token = getAccessToken()
+  if (!token) throw new Error('Sesión expirada.')
+
+  const res = await fetch(`${API_URL}${path}`, {
+    headers: { Authorization: `Bearer ${token}` },
+  })
+  if (res.status === 401) {
+    clearSession()
+    throw new Error('Sesión expirada.')
+  }
+  if (!res.ok) {
+    const text = await res.text().catch(() => '')
+    throw new Error(text || `Error ${res.status}`)
+  }
+
+  const blob = await res.blob()
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = filename
+  document.body.appendChild(a)
+  a.click()
+  a.remove()
+  setTimeout(() => URL.revokeObjectURL(url), 1000)
 }
 
 // ---------------------------------------------------------------------------
