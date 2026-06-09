@@ -1,14 +1,39 @@
 "use client"
 
-import { useEffect, useState } from "react"
-import { auditApi } from "@/lib/apiClient"
+import { useEffect, useMemo, useState } from "react"
+import { adminUsersApi, auditApi, spacesApi } from "@/lib/apiClient"
 
 // HU-27 — Visualización de logs de actividad
 export default function LogsPage() {
   const [logs, setLogs] = useState([])
+  const [users, setUsers] = useState([])
+  const [spaces, setSpaces] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState("")
   const [filterAction, setFilterAction] = useState("")
+
+  // Mapa UUID → "Nombre Apellido (1234567)"
+  const userById = useMemo(() => {
+    const m = new Map()
+    for (const u of users) {
+      const name = `${u.first_name || ""} ${u.last_name || ""}`.trim()
+      const label = name
+        ? `${name} (${u.university_code})`
+        : u.university_code || u.email || u.id
+      m.set(u.id, label)
+    }
+    return m
+  }, [users])
+
+  // Mapa UUID → "AREA-CODE · Nombre" (para columna recurso)
+  const spaceById = useMemo(() => {
+    const m = new Map()
+    for (const s of spaces) {
+      const label = `${(s.area?.code || "").toUpperCase()}-${s.code} · ${s.name}`
+      m.set(s.id, label)
+    }
+    return m
+  }, [spaces])
 
   const fetchLogs = async () => {
     setLoading(true)
@@ -25,10 +50,62 @@ export default function LogsPage() {
     }
   }
 
+  // Carga inicial paralela: logs + usuarios + espacios
   useEffect(() => {
-    fetchLogs()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    Promise.all([
+      auditApi.list().catch(() => []),
+      adminUsersApi.list({ page_size: 200 }).catch(() => ({ results: [] })),
+      spacesApi
+        .list({ page_size: 100, include_inactive: "true" })
+        .catch(() => ({ results: [] })),
+    ])
+      .then(([logsData, usersData, spacesData]) => {
+        setLogs(Array.isArray(logsData) ? logsData : [])
+        setUsers(usersData?.results || usersData || [])
+        setSpaces(spacesData?.results || spacesData || [])
+      })
+      .catch((err) => setError(err.message))
+      .finally(() => setLoading(false))
   }, [])
+
+  // Resuelve resource_id según el tipo de recurso
+  const renderResource = (log) => {
+    if (!log.resource_id) return log.resource
+    let extra = null
+    if (log.resource === "reservation") {
+      extra = (
+        <span className="text-gray-400 text-xs">
+          {" "}· #{log.resource_id.slice(0, 8)}
+        </span>
+      )
+    } else if (log.resource === "space") {
+      const label = spaceById.get(log.resource_id)
+      extra = (
+        <span className="text-gray-500 text-xs">
+          {" "}· {label || `#${log.resource_id.slice(0, 8)}`}
+        </span>
+      )
+    } else if (log.resource === "user") {
+      const label = userById.get(log.resource_id)
+      extra = (
+        <span className="text-gray-500 text-xs">
+          {" "}· {label || `#${log.resource_id.slice(0, 8)}`}
+        </span>
+      )
+    } else {
+      extra = (
+        <span className="text-gray-400 text-xs">
+          {" "}· {log.resource_id.slice(0, 12)}…
+        </span>
+      )
+    }
+    return (
+      <>
+        {log.resource}
+        {extra}
+      </>
+    )
+  }
 
   return (
     <div className="p-8 max-w-6xl mx-auto space-y-6">
@@ -83,24 +160,32 @@ export default function LogsPage() {
               </tr>
             </thead>
             <tbody>
-              {logs.map((log) => (
-                <tr key={log.id} className="border-t">
-                  <td className="px-4 py-2 text-gray-600">
-                    {new Date(log.timestamp).toLocaleString()}
-                  </td>
-                  <td className="px-4 py-2 font-mono text-xs">
-                    {log.user_label || log.user_id || "—"}
-                  </td>
-                  <td className="px-4 py-2 font-semibold">{log.action}</td>
-                  <td className="px-4 py-2">
-                    {log.resource}
-                    {log.resource_id && (
-                      <span className="text-gray-400 text-xs"> · {log.resource_id.slice(0, 8)}…</span>
-                    )}
-                  </td>
-                  <td className="px-4 py-2 text-gray-500">{log.ip_address || "—"}</td>
-                </tr>
-              ))}
+              {logs.map((log) => {
+                const resolvedUser = userById.get(log.user_id)
+                const displayUser =
+                  resolvedUser ||
+                  log.user_label ||
+                  (log.user_id ? (
+                    <span className="font-mono text-xs text-gray-400">
+                      {log.user_id.slice(0, 8)}…
+                    </span>
+                  ) : (
+                    "—"
+                  ))
+                return (
+                  <tr key={log.id} className="border-t">
+                    <td className="px-4 py-2 text-gray-600">
+                      {new Date(log.timestamp).toLocaleString()}
+                    </td>
+                    <td className="px-4 py-2">{displayUser}</td>
+                    <td className="px-4 py-2 font-semibold">{log.action}</td>
+                    <td className="px-4 py-2">{renderResource(log)}</td>
+                    <td className="px-4 py-2 text-gray-500">
+                      {log.ip_address || "—"}
+                    </td>
+                  </tr>
+                )
+              })}
             </tbody>
           </table>
         )}

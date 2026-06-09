@@ -15,8 +15,48 @@ from .services import (
     UpstreamServiceError,
     check_holiday,
     fetch_space_by_area_and_code,
+    fetch_space_by_id,
+    fetch_user_by_id,
     fetch_user_by_university_code,
 )
+
+
+def _build_space_label(space: dict | None) -> str:
+    if not space:
+        return ''
+    area_code = ((space.get('area') or {}).get('code') or '').upper()
+    code = space.get('code') or ''
+    name = space.get('name') or ''
+    label = f'{area_code}-{code} · {name}'.strip(' ·-')
+    return label or name
+
+
+def _payload_for_event(reservation, user_payload=None, space_payload=None, **extra) -> dict:
+    """
+    Construye el payload base que se publica en RabbitMQ.
+    Si no recibe user_payload / space_payload, los resuelve por HTTP.
+    Si la resolución falla, el campo respectivo queda vacío y el consumer
+    decide qué hacer (omitir envío, log, etc.).
+    """
+    if user_payload is None:
+        user_payload = fetch_user_by_id(str(reservation.requester_user_id)) or {}
+    if space_payload is None:
+        space_payload = fetch_space_by_id(str(reservation.space_id)) or {}
+
+    payload = {
+        'reservation_id': str(reservation.id),
+        'space_id': str(reservation.space_id),
+        'requester_user_id': str(reservation.requester_user_id),
+        'reservation_date': reservation.reservation_date.isoformat(),
+        'start_hour': reservation.start_hour,
+        'end_hour': reservation.end_hour,
+        'user_email': user_payload.get('email', ''),
+        'user_first_name': user_payload.get('first_name', ''),
+        'user_last_name': user_payload.get('last_name', ''),
+        'space_label': _build_space_label(space_payload),
+    }
+    payload.update(extra)
+    return payload
 
 
 # ---------------------------------------------------------------------------
@@ -212,14 +252,11 @@ class ReservationListCreateAPIView(APIView):
                 reservation.save()
                 _create_outbox_and_publish(
                     OutboxEvent.EventType.RESERVATION_CREATED,
-                    {
-                        'reservation_id': str(reservation.id),
-                        'space_id': str(space_id),
-                        'requester_user_id': str(user_id),
-                        'reservation_date': data['reservation_date'].isoformat(),
-                        'start_hour': data['start_hour'],
-                        'end_hour': data['end_hour'],
-                    },
+                    _payload_for_event(
+                        reservation,
+                        user_payload=user_payload,
+                        space_payload=space_payload,
+                    ),
                 )
         except ValidationError as exc:
             detail = getattr(exc, 'message_dict', None) or list(exc.messages)
@@ -320,12 +357,7 @@ class ReservationDetailAPIView(APIView):
 
         _create_outbox_and_publish(
             OutboxEvent.EventType.RESERVATION_CANCELLED,
-            {
-                'reservation_id': str(r.id),
-                'space_id': str(r.space_id),
-                'requester_user_id': str(r.requester_user_id),
-                'cancelled_by': str(payload['user_id']),
-            },
+            _payload_for_event(r, cancelled_by=str(payload['user_id'])),
         )
 
         return Response(_serialize_reservation(r))
@@ -455,18 +487,13 @@ class ReservationReviewAPIView(APIView):
 
         _create_outbox_and_publish(
             event_type,
-            {
-                'reservation_id': str(r.id),
-                'space_id': str(r.space_id),
-                'requester_user_id': str(r.requester_user_id),
-                'reservation_date': r.reservation_date.isoformat(),
-                'start_hour': r.start_hour,
-                'end_hour': r.end_hour,
-                'action': action,
-                'notes': notes,
-                'reviewed_by': str(admin_id),
-                'reviewed_at': now.isoformat(),
-            },
+            _payload_for_event(
+                r,
+                action=action,
+                notes=notes,
+                reviewed_by=str(admin_id),
+                reviewed_at=now.isoformat(),
+            ),
         )
 
         return Response(_serialize_reservation(r))

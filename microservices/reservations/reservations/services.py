@@ -76,6 +76,36 @@ def fetch_space_by_area_and_code(area_code: str, space_code: str) -> dict:
     return data
 
 
+def fetch_user_by_id(user_id: str) -> dict | None:
+    """
+    Resuelve un usuario por su UUID llamando a users MS.
+    Retorna None si no se puede resolver (sin lanzar excepción — el envío de
+    correos no debe romper el flujo de reserva).
+    """
+    base = settings.USERS_SERVICE_URL.rstrip('/')
+    url = f'{base}/api/v1/users/{user_id}/'
+    try:
+        data, status = _get_json(url, timeout=5.0)
+        if status >= 400:
+            return None
+        return data
+    except UpstreamServiceError:
+        return None
+
+
+def fetch_space_by_id(space_id: str) -> dict | None:
+    """Resuelve un espacio por UUID. None si falla."""
+    base = settings.SPACES_SERVICE_URL.rstrip('/')
+    url = f'{base}/api/v1/spaces/{space_id}/'
+    try:
+        data, status = _get_json(url, timeout=5.0)
+        if status >= 400:
+            return None
+        return data
+    except UpstreamServiceError:
+        return None
+
+
 def check_holiday(date_iso: str, space_id: str | None) -> dict:
     """HU-19 — consulta a spaces si la fecha está bloqueada."""
     base = settings.SPACES_SERVICE_URL.rstrip('/')
