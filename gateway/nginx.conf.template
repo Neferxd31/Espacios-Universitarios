@@ -1,0 +1,102 @@
+# ============================================================================
+# Template procesado por envsubst en runtime.
+# Variables soportadas (todas con valor por defecto para docker-compose local):
+#   PORT, USERS_HOST, SPACES_HOST, RESERVATIONS_HOST,
+#   NOTIFICATIONS_HOST, REPORTS_HOST
+#
+# En Railway estas se setean apuntando a `<service>.railway.internal:8080`.
+# ============================================================================
+
+upstream users_ms {
+    server ${USERS_HOST};
+    keepalive 16;
+}
+
+upstream spaces_ms {
+    server ${SPACES_HOST};
+    keepalive 16;
+}
+
+upstream reservations_ms {
+    server ${RESERVATIONS_HOST};
+    keepalive 16;
+}
+
+upstream notifications_ms {
+    server ${NOTIFICATIONS_HOST};
+    keepalive 16;
+}
+
+upstream reports_ms {
+    server ${REPORTS_HOST};
+    keepalive 16;
+}
+
+gzip on;
+gzip_vary on;
+gzip_min_length 256;
+gzip_proxied any;
+gzip_types
+  application/json
+  application/javascript
+  application/xml
+  text/css
+  text/plain
+  text/xml;
+
+server {
+    listen ${PORT};
+    server_name _;
+
+    # CORS preflight global — el frontend público necesita pasar headers
+    add_header Access-Control-Allow-Origin       $http_origin always;
+    add_header Access-Control-Allow-Credentials  true always;
+    add_header Access-Control-Allow-Methods      "GET, POST, PATCH, PUT, DELETE, OPTIONS" always;
+    add_header Access-Control-Allow-Headers      "Authorization, Content-Type, Accept, Origin, X-Requested-With" always;
+
+    if ($request_method = OPTIONS) {
+        return 204;
+    }
+
+    # Health
+    location = /api/gateway/health {
+        access_log off;
+        return 200 '{"status":"ok","service":"api-gateway"}';
+        add_header Content-Type application/json;
+    }
+
+    location = /api/health/users {
+        proxy_pass http://users_ms/api/health/;
+        include /etc/nginx/proxy_params;
+    }
+    location = /api/health/spaces {
+        proxy_pass http://spaces_ms/api/v1/test/;
+        include /etc/nginx/proxy_params;
+    }
+
+    # Users
+    location /api/v1/auth/        { proxy_pass http://users_ms; include /etc/nginx/proxy_params; }
+    location /api/v1/users/       { proxy_pass http://users_ms; include /etc/nginx/proxy_params; }
+    location /api/v1/admin/users/ { proxy_pass http://users_ms; include /etc/nginx/proxy_params; }
+
+    # Reservations (incluye admin/rules HU-26)
+    location /api/v1/admin/rules/ { proxy_pass http://reservations_ms; include /etc/nginx/proxy_params; }
+    location /api/v1/reservations/ { proxy_pass http://reservations_ms; include /etc/nginx/proxy_params; }
+
+    # Spaces (incluye holidays HU-19)
+    location /api/v1/spaces/   { proxy_pass http://spaces_ms; include /etc/nginx/proxy_params; }
+    location /api/v1/areas/    { proxy_pass http://spaces_ms; include /etc/nginx/proxy_params; }
+    location /api/v1/holidays/ { proxy_pass http://spaces_ms; include /etc/nginx/proxy_params; }
+
+    # Notifications
+    location /api/v1/notifications/ { proxy_pass http://notifications_ms; include /etc/nginx/proxy_params; }
+
+    # Reports + audit
+    location /api/v1/reports/ { proxy_pass http://reports_ms; include /etc/nginx/proxy_params; }
+    location /api/v1/audit/   { proxy_pass http://reports_ms; include /etc/nginx/proxy_params; }
+
+    location / {
+        return 404 '{"error":"route not found","hint":"check /api/v1/..."}';
+        add_header Content-Type application/json;
+    }
+}

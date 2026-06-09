@@ -31,12 +31,32 @@ SECRET_KEY = os.environ.get(
     'django-insecure-$z1)dtd7okx8zru&oxlyv*xszahjc@higmk=nqk(z-3b9&zxa-',
 )
 
-DEBUG = os.environ.get('DJANGO_DEBUG', 'True') == 'True'
+# En Railway DEBUG=False por defecto. En local sigue True.
+_RAILWAY_PUBLIC = os.environ.get('RAILWAY_PUBLIC_DOMAIN', '').strip()
+DEBUG = os.environ.get('DJANGO_DEBUG', 'False' if _RAILWAY_PUBLIC else 'True') == 'True'
 
 ALLOWED_HOSTS = [
     h.strip()
     for h in os.environ.get('DJANGO_ALLOWED_HOSTS', 'localhost,127.0.0.1').split(',')
     if h.strip()
+]
+# Railway expone el servicio por un subdominio dinámico — lo añadimos solo
+# si la variable está presente para no relajar seguridad en local.
+if _RAILWAY_PUBLIC:
+    ALLOWED_HOSTS.append(_RAILWAY_PUBLIC)
+    ALLOWED_HOSTS.extend(['.railway.app', '.up.railway.app', '.railway.internal'])
+
+# Railway termina TLS en su proxy — sin esto Django piensa que es HTTP
+SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
+
+# CSRF: los POST a admin/ desde el dominio público requieren listarlo aquí
+CSRF_TRUSTED_ORIGINS = []
+if _RAILWAY_PUBLIC:
+    CSRF_TRUSTED_ORIGINS.append(f'https://{_RAILWAY_PUBLIC}')
+CSRF_TRUSTED_ORIGINS += [
+    o.strip()
+    for o in os.environ.get('CSRF_TRUSTED_ORIGINS', '').split(',')
+    if o.strip()
 ]
 
 INSTALLED_APPS = [
@@ -57,6 +77,12 @@ INSTALLED_APPS = [
 CORS_ALLOWED_ORIGINS = [
     'http://localhost:3000',
     'http://127.0.0.1:3000',
+]
+# Frontend en producción se pasa por env var (lista separada por coma)
+CORS_ALLOWED_ORIGINS += [
+    o.strip()
+    for o in os.environ.get('CORS_ALLOWED_ORIGINS', '').split(',')
+    if o.strip()
 ]
 CORS_ALLOW_CREDENTIALS = True
 

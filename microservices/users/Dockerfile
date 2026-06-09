@@ -11,19 +11,18 @@ RUN pip install --upgrade pip \
 
 COPY . .
 
+# Railway inyecta $PORT en runtime. En local docker-compose cae a 8000.
+ENV PORT=8000
 EXPOSE 8000
 
-# Gunicorn con 3 workers — atiende peticiones en paralelo (runserver es single-thread)
-# --threads 4 → cada worker maneja 4 requests simultáneos vía thread pool
-# --max-requests recicla workers periódicamente para evitar leaks de conexiones a Postgres
 CMD ["sh", "-c", \
   "python manage.py makemigrations --noinput && \
    python manage.py migrate --noinput && \
    python manage.py seed_roles && \
    exec gunicorn config.wsgi:application \
-     --bind 0.0.0.0:8000 \
-     --workers 3 \
-     --threads 4 \
+     --bind 0.0.0.0:${PORT} \
+     --workers ${WEB_CONCURRENCY:-3} \
+     --threads ${WEB_THREADS:-4} \
      --worker-class gthread \
      --timeout 60 \
      --max-requests 1000 \
