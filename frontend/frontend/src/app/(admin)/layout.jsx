@@ -3,11 +3,14 @@ import UFPSLogo from '@/components/UFPSLogo'
 import RouteGuard from '@/components/RouteGuard'
 
 const NAV = [
+  { href: '/admin/dashboard', label: 'Dashboard', icon: '📊' },
   { href: '/admin/reservas', label: 'Reservas', icon: '📋' },
   { href: '/admin/usuarios', label: 'Usuarios', icon: '👥' },
   { href: '/admin/departamentos', label: 'Dependencias', icon: '🏢' },
   { href: '/admin/espacios', label: 'Espacios', icon: '🏫' },
   { href: '/admin/horarios', label: 'Horarios', icon: '🕐' },
+  { href: '/admin/reportes', label: 'Reportes', icon: '📈' },
+  { href: '/admin/logs', label: 'Logs', icon: '🪵' },
   { href: '/admin/configuracion', label: 'Configuración', icon: '⚙️' },
 ]
 

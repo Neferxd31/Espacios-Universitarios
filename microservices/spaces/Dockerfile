@@ -14,6 +14,7 @@ COPY . .
 EXPOSE 8000
 
 CMD ["sh", "-c", \
-  "python manage.py migrate --noinput && \
+  "python manage.py makemigrations --noinput && \
+   python manage.py migrate --noinput && \
    python manage.py seed_sb && \
    exec python manage.py runserver 0.0.0.0:8000"]

@@ -102,6 +102,47 @@ class Reservation(models.Model):
         super().save(*args, **kwargs)
 
 
+class ReservationRules(models.Model):
+    """
+    Configuración global de reservas (HU-26). Singleton (solo 1 fila).
+    Reglas aplicadas al crear / cancelar reservas.
+    """
+
+    id = models.AutoField(primary_key=True)
+    max_hours_per_day = models.PositiveSmallIntegerField(
+        default=4,
+        help_text='Horas máximas que un usuario puede reservar al día.',
+    )
+    min_anticipation_hours = models.PositiveSmallIntegerField(
+        default=1,
+        help_text='Anticipación mínima en horas para crear una reserva.',
+    )
+    max_anticipation_days = models.PositiveSmallIntegerField(
+        default=15,
+        help_text='Anticipación máxima en días para crear una reserva.',
+    )
+    cancel_anticipation_hours = models.PositiveSmallIntegerField(
+        default=2,
+        help_text='Horas mínimas antes de la reserva para poder cancelar.',
+    )
+    max_simultaneous_per_user = models.PositiveSmallIntegerField(
+        default=2,
+        help_text='Reservas activas simultáneas máximas por usuario.',
+    )
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = 'reservation_rules'
+
+    def __str__(self) -> str:
+        return f'Rules (max_hours={self.max_hours_per_day}, cancel_h={self.cancel_anticipation_hours})'
+
+    @classmethod
+    def current(cls) -> 'ReservationRules':
+        obj, _ = cls.objects.get_or_create(pk=1)
+        return obj
+
+
 class OutboxEvent(models.Model):
     class EventType(models.TextChoices):
         RESERVATION_CREATED   = 'ReservationCreated',   'Reservation Created'

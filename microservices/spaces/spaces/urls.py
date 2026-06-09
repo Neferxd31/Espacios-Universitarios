@@ -3,6 +3,9 @@ from django.urls import path
 from .api import (
     AreaDetailAPIView,
     AreaListCreateAPIView,
+    HolidayCheckAPIView,
+    HolidayDetailAPIView,
+    HolidayListCreateAPIView,
     MisEspaciosAPIView,
     SpaceDetailAPIView,
     SpaceListCreateAPIView,
@@ -26,4 +29,9 @@ urlpatterns = [
     # Horarios (HU-25)
     path('spaces/<uuid:pk>/horarios/', SpaceOperatingHoursAPIView.as_view()),
     path('spaces/<uuid:pk>/horarios/<uuid:hour_id>/', SpaceOperatingHourDetailAPIView.as_view()),
+
+    # HU-19 — Festivos / días bloqueados
+    path('holidays/', HolidayListCreateAPIView.as_view()),
+    path('holidays/check/', HolidayCheckAPIView.as_view()),
+    path('holidays/<uuid:pk>/', HolidayDetailAPIView.as_view()),
 ]

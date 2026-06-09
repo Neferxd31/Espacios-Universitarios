@@ -217,4 +217,79 @@ export const reservationsApi = {
   // Consultar horas ocupadas de un espacio en una fecha
   bySpace: (spaceId, date) =>
     request(`/api/v1/reservations/by-space/${spaceId}/?date=${date}`),
+
+  // HU-8 — Espacios ocupados en una franja
+  busySpaces: (date, startHour, endHour) =>
+    request(
+      `/api/v1/reservations/busy-spaces/?date=${date}&start_hour=${startHour}&end_hour=${endHour}`,
+    ),
+}
+
+// ---------------------------------------------------------------------------
+// HU-26 — Reservation Rules (admin)
+// ---------------------------------------------------------------------------
+export const rulesApi = {
+  get: () => request('/api/v1/admin/rules/', { auth: true }),
+  update: (payload) =>
+    request('/api/v1/admin/rules/', { method: 'PATCH', body: payload, auth: true }),
+}
+
+// ---------------------------------------------------------------------------
+// HU-19 — Días bloqueados (festivos)
+// ---------------------------------------------------------------------------
+export const holidaysApi = {
+  list: (params = {}) => {
+    const qs = new URLSearchParams(params).toString()
+    return request(`/api/v1/holidays/${qs ? `?${qs}` : ''}`)
+  },
+  check: (date, spaceId) => {
+    const params = new URLSearchParams({ date })
+    if (spaceId) params.set('space_id', spaceId)
+    return request(`/api/v1/holidays/check/?${params.toString()}`)
+  },
+  create: (payload) =>
+    request('/api/v1/holidays/', { method: 'POST', body: payload, auth: true }),
+  delete: (id) => request(`/api/v1/holidays/${id}/`, { method: 'DELETE', auth: true }),
+}
+
+// ---------------------------------------------------------------------------
+// HU-14 — Notificaciones del usuario
+// ---------------------------------------------------------------------------
+export const notificationsApi = {
+  list: (params = {}) => {
+    const qs = new URLSearchParams(params).toString()
+    return request(`/api/v1/notifications/${qs ? `?${qs}` : ''}`, { auth: true })
+  },
+}
+
+// ---------------------------------------------------------------------------
+// HU-22, 23, 24, 25 — Reportes (admin)
+// ---------------------------------------------------------------------------
+export const reportsApi = {
+  summary: () => request('/api/v1/reports/summary/', { auth: true }),
+  usage: (start, end) =>
+    request(`/api/v1/reports/usage/?start_date=${start}&end_date=${end}`, { auth: true }),
+  topSpaces: (start, end, limit = 10) =>
+    request(
+      `/api/v1/reports/top-spaces/?start_date=${start}&end_date=${end}&limit=${limit}`,
+      { auth: true },
+    ),
+  heatmap: (start, end) =>
+    request(`/api/v1/reports/heatmap/?start_date=${start}&end_date=${end}`, { auth: true }),
+
+  // URLs directas para descargas (el navegador maneja el blob)
+  exportCsvUrl: (start, end) =>
+    `${API_URL}/api/v1/reports/export/csv/?start_date=${start}&end_date=${end}`,
+  exportPdfUrl: (start, end) =>
+    `${API_URL}/api/v1/reports/export/pdf/?start_date=${start}&end_date=${end}`,
+}
+
+// ---------------------------------------------------------------------------
+// HU-27 — Audit log (admin)
+// ---------------------------------------------------------------------------
+export const auditApi = {
+  list: (params = {}) => {
+    const qs = new URLSearchParams(params).toString()
+    return request(`/api/v1/audit/${qs ? `?${qs}` : ''}`, { auth: true })
+  },
 }

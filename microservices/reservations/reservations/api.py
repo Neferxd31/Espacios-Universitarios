@@ -1,4 +1,5 @@
 import uuid
+from datetime import datetime, timedelta
 
 from django.core.exceptions import ValidationError
 from django.db import transaction
@@ -7,10 +8,15 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from .auth import get_token_payload, require_admin
-from .models import OutboxEvent, Reservation
+from .models import OutboxEvent, Reservation, ReservationRules
 from .publisher import publish_reservation_event
-from .serializers import ReservationCreateSerializer
-from .services import UpstreamServiceError, fetch_space_by_area_and_code, fetch_user_by_university_code
+from .serializers import ReservationCreateSerializer, ReservationRulesSerializer
+from .services import (
+    UpstreamServiceError,
+    check_holiday,
+    fetch_space_by_area_and_code,
+    fetch_user_by_university_code,
+)
 
 
 # ---------------------------------------------------------------------------
@@ -118,13 +124,88 @@ class ReservationListCreateAPIView(APIView):
                 status=502,
             )
 
+        # ============================================================
+        # Reglas de negocio (HU-13, HU-18, HU-19, HU-26)
+        # ============================================================
+        rules = ReservationRules.current()
+        now = timezone.now()
+
+        # HU-26 — anticipación min/max
+        reservation_dt = timezone.make_aware(
+            datetime.combine(data['reservation_date'], datetime.min.time())
+        ).replace(hour=data['start_hour'])
+        delta = reservation_dt - now
+        if delta.total_seconds() < rules.min_anticipation_hours * 3600:
+            return Response(
+                {'detail': f'Se requieren al menos {rules.min_anticipation_hours}h de anticipación.'},
+                status=400,
+            )
+        if delta.days > rules.max_anticipation_days:
+            return Response(
+                {'detail': f'No se puede reservar con más de {rules.max_anticipation_days} días de anticipación.'},
+                status=400,
+            )
+
+        # HU-26 — max_hours_per_day
+        requested_hours = data['end_hour'] - data['start_hour']
+        already = sum(
+            r.end_hour - r.start_hour
+            for r in Reservation.objects.filter(
+                requester_user_id=user_id,
+                reservation_date=data['reservation_date'],
+                status__in=Reservation.ACTIVE_STATUSES,
+            )
+        )
+        if already + requested_hours > rules.max_hours_per_day:
+            return Response(
+                {'detail': f'Máximo {rules.max_hours_per_day} horas reservadas por día.'},
+                status=400,
+            )
+
+        # HU-26 — max_simultaneous_per_user
+        active_count = Reservation.objects.filter(
+            requester_user_id=user_id,
+            status__in=Reservation.ACTIVE_STATUSES,
+            reservation_date__gte=now.date(),
+        ).count()
+        if active_count >= rules.max_simultaneous_per_user:
+            return Response(
+                {'detail': f'Solo puedes tener {rules.max_simultaneous_per_user} reservas activas.'},
+                status=400,
+            )
+
+        # HU-18 — restricción de rol por aula
+        allowed_roles = space_payload.get('allowed_roles') or []
+        user_role = (user_payload.get('role') or {}).get('name', '') if isinstance(user_payload.get('role'), dict) else ''
+        if allowed_roles and user_role and user_role not in allowed_roles:
+            return Response(
+                {'detail': f'El rol "{user_role}" no tiene permitido reservar este espacio.'},
+                status=403,
+            )
+
+        # HU-19 — bloqueo de festivos
+        holiday = check_holiday(data['reservation_date'].isoformat(), str(space_id))
+        if holiday.get('is_blocked'):
+            return Response(
+                {'detail': f'Fecha bloqueada: {holiday.get("label") or "festivo"}.'},
+                status=400,
+            )
+
+        # HU-10 — auto-confirmación si el espacio no requiere aprobación
+        requires_approval = space_payload.get('requires_approval', True)
+        initial_status = (
+            Reservation.Status.CONFIRMED
+            if not requires_approval
+            else Reservation.Status.PENDING
+        )
+
         reservation = Reservation(
             requester_user_id=user_id,
             space_id=space_id,
             reservation_date=data['reservation_date'],
             start_hour=data['start_hour'],
             end_hour=data['end_hour'],
-            status=Reservation.Status.PENDING,
+            status=initial_status,
         )
         try:
             with transaction.atomic():
@@ -219,6 +300,17 @@ class ReservationDetailAPIView(APIView):
         if r.status == Reservation.Status.CANCELLED:
             return Response({'detail': 'La reserva ya está cancelada.'}, status=400)
 
+        # HU-13 — anticipación mínima al cancelar
+        rules = ReservationRules.current()
+        reservation_dt = timezone.make_aware(
+            datetime.combine(r.reservation_date, datetime.min.time())
+        ).replace(hour=r.start_hour)
+        if reservation_dt - timezone.now() < timedelta(hours=rules.cancel_anticipation_hours):
+            return Response(
+                {'detail': f'Solo se puede cancelar con al menos {rules.cancel_anticipation_hours}h de anticipación.'},
+                status=400,
+            )
+
         r.status = Reservation.Status.CANCELLED
         r.cancelled_at = timezone.now()
         r.cancelled_by_user_id = uuid.UUID(str(payload['user_id']))
@@ -242,6 +334,71 @@ class ReservationDetailAPIView(APIView):
 # ---------------------------------------------------------------------------
 # Revisión de reserva (admin) — HU-3
 # ---------------------------------------------------------------------------
+
+# ---------------------------------------------------------------------------
+# HU-26 — Configuración global de reglas (admin)
+# ---------------------------------------------------------------------------
+
+class ReservationRulesAPIView(APIView):
+    """
+    GET   /api/v1/admin/rules/  — leer (admin)
+    PATCH /api/v1/admin/rules/  — actualizar (admin)
+    """
+
+    def get(self, request):
+        _, error = require_admin(request)
+        if error:
+            return error
+        rules = ReservationRules.current()
+        return Response(ReservationRulesSerializer(rules).data)
+
+    def patch(self, request):
+        _, error = require_admin(request)
+        if error:
+            return error
+        rules = ReservationRules.current()
+        ser = ReservationRulesSerializer(rules, data=request.data, partial=True)
+        if not ser.is_valid():
+            return Response({'errors': ser.errors}, status=400)
+        ser.save()
+        return Response(ser.data)
+
+
+# ---------------------------------------------------------------------------
+# HU-8 — Espacios ocupados en una franja (consumido por spaces/UI)
+# ---------------------------------------------------------------------------
+
+class BusySpacesAPIView(APIView):
+    """
+    GET /api/v1/reservations/busy-spaces/?date=&start_hour=&end_hour=
+    Devuelve los space_ids que tienen reservas activas que solapan la franja.
+    Sin auth — solo expone UUIDs.
+    """
+
+    def get(self, request):
+        date_str = request.query_params.get('date')
+        try:
+            start_hour = int(request.query_params.get('start_hour', '0'))
+            end_hour = int(request.query_params.get('end_hour', '24'))
+        except ValueError:
+            return Response({'detail': 'Horas inválidas.'}, status=400)
+        if not date_str:
+            return Response({'detail': 'Se requiere date.'}, status=400)
+
+        qs = Reservation.objects.filter(
+            reservation_date=date_str,
+            status__in=Reservation.ACTIVE_STATUSES,
+            start_hour__lt=end_hour,
+            end_hour__gt=start_hour,
+        ).values_list('space_id', flat=True).distinct()
+
+        return Response({
+            'date': date_str,
+            'start_hour': start_hour,
+            'end_hour': end_hour,
+            'busy_space_ids': [str(s) for s in qs],
+        })
+
 
 class ReservationReviewAPIView(APIView):
     """

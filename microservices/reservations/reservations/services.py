@@ -74,3 +74,20 @@ def fetch_space_by_area_and_code(area_code: str, space_code: str) -> dict:
             status_code=502,
         )
     return data
+
+
+def check_holiday(date_iso: str, space_id: str | None) -> dict:
+    """HU-19 — consulta a spaces si la fecha está bloqueada."""
+    base = settings.SPACES_SERVICE_URL.rstrip('/')
+    params = {'date': date_iso}
+    if space_id:
+        params['space_id'] = str(space_id)
+    qs = urllib.parse.urlencode(params)
+    url = f'{base}/api/v1/holidays/check/?{qs}'
+    try:
+        data, status = _get_json(url)
+        if status >= 400:
+            return {'is_blocked': False, 'label': None}
+        return data
+    except UpstreamServiceError:
+        return {'is_blocked': False, 'label': None}

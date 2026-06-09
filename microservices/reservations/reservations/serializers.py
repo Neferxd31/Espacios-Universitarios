@@ -1,5 +1,22 @@
 from rest_framework import serializers
 
+from .models import ReservationRules
+
+
+class ReservationRulesSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = ReservationRules
+        fields = (
+            'id',
+            'max_hours_per_day',
+            'min_anticipation_hours',
+            'max_anticipation_days',
+            'cancel_anticipation_hours',
+            'max_simultaneous_per_user',
+            'updated_at',
+        )
+        read_only_fields = ('id', 'updated_at')
+
 
 class ReservationCreateSerializer(serializers.Serializer):
     """

@@ -1,6 +1,6 @@
 from django.contrib import admin
 
-from .models import OutboxEvent, Reservation
+from .models import OutboxEvent, Reservation, ReservationRules
 
 
 @admin.register(Reservation)
@@ -23,3 +23,16 @@ class ReservationAdmin(admin.ModelAdmin):
 class OutboxEventAdmin(admin.ModelAdmin):
     list_display = ('event_type', 'created_at', 'published_at')
     list_filter = ('event_type',)
+
+
+@admin.register(ReservationRules)
+class ReservationRulesAdmin(admin.ModelAdmin):
+    list_display = (
+        'id',
+        'max_hours_per_day',
+        'min_anticipation_hours',
+        'max_anticipation_days',
+        'cancel_anticipation_hours',
+        'max_simultaneous_per_user',
+        'updated_at',
+    )

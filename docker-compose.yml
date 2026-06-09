@@ -26,6 +26,8 @@ services:
       - users
       - spaces
       - reservations
+      - notifications
+      - reports
     networks:
       - classrooms
 
@@ -41,6 +43,10 @@ services:
       JWT_SECRET_KEY: ${JWT_SECRET_KEY:-dev-jwt-secret-change-in-production}
       JWT_ACCESS_TOKEN_EXPIRE_HOURS: ${JWT_ACCESS_TOKEN_EXPIRE_HOURS:-1}
       JWT_REFRESH_TOKEN_EXPIRE_DAYS: ${JWT_REFRESH_TOKEN_EXPIRE_DAYS:-7}
+      RABBITMQ_URL: amqp://${RABBITMQ_USER:-guest}:${RABBITMQ_PASS:-guest}@rabbitmq:5672/
+      FRONTEND_URL: ${FRONTEND_URL:-http://localhost:3000}
+    depends_on:
+      - rabbitmq
     networks:
       - classrooms
 
@@ -75,6 +81,110 @@ services:
       - users
       - spaces
       - rabbitmq
+    networks:
+      - classrooms
+
+  # ── Notifications microservice ───────────────────────────────────────────
+  notifications:
+    build:
+      context: ./microservices/notifications
+    expose:
+      - "8000"
+    ports:
+      - "8083:8000"
+    environment:
+      DJANGO_ALLOWED_HOSTS: localhost,127.0.0.1,notifications,gateway
+      DATABASE_URL: ${NOTIFICATIONS_DATABASE_URL}
+      JWT_SECRET_KEY: ${JWT_SECRET_KEY:-dev-jwt-secret-change-in-production}
+      RABBITMQ_URL: amqp://${RABBITMQ_USER:-guest}:${RABBITMQ_PASS:-guest}@rabbitmq:5672/
+      EMAIL_BACKEND: ${EMAIL_BACKEND:-django.core.mail.backends.console.EmailBackend}
+      EMAIL_HOST: ${EMAIL_HOST:-}
+      EMAIL_PORT: ${EMAIL_PORT:-587}
+      EMAIL_HOST_USER: ${EMAIL_HOST_USER:-}
+      EMAIL_HOST_PASSWORD: ${EMAIL_HOST_PASSWORD:-}
+      EMAIL_USE_TLS: ${EMAIL_USE_TLS:-True}
+      DEFAULT_FROM_EMAIL: ${DEFAULT_FROM_EMAIL:-Espacios UFPS <no-reply@ufps.edu.co>}
+      REMINDER_HOURS_BEFORE: ${REMINDER_HOURS_BEFORE:-1}
+      FRONTEND_URL: ${FRONTEND_URL:-http://localhost:3000}
+    depends_on:
+      - rabbitmq
+    networks:
+      - classrooms
+
+  # ── Worker: cron de recordatorios (HU-15) ────────────────────────────────
+  notifications-reminder-cron:
+    build:
+      context: ./microservices/notifications
+    command: ["sh", "-c", "while true; do python manage.py send_due_reminders; sleep ${REMINDER_TICK_SECONDS:-300}; done"]
+    environment:
+      DATABASE_URL: ${NOTIFICATIONS_DATABASE_URL}
+      EMAIL_BACKEND: ${EMAIL_BACKEND:-django.core.mail.backends.console.EmailBackend}
+      EMAIL_HOST: ${EMAIL_HOST:-}
+      EMAIL_PORT: ${EMAIL_PORT:-587}
+      EMAIL_HOST_USER: ${EMAIL_HOST_USER:-}
+      EMAIL_HOST_PASSWORD: ${EMAIL_HOST_PASSWORD:-}
+      EMAIL_USE_TLS: ${EMAIL_USE_TLS:-True}
+      DEFAULT_FROM_EMAIL: ${DEFAULT_FROM_EMAIL:-Espacios UFPS <no-reply@ufps.edu.co>}
+      FRONTEND_URL: ${FRONTEND_URL:-http://localhost:3000}
+    depends_on:
+      - notifications
+    restart: unless-stopped
+    networks:
+      - classrooms
+
+  # ── Worker: consumer RabbitMQ ────────────────────────────────────────────
+  notifications-worker:
+    build:
+      context: ./microservices/notifications
+    command: ["python", "manage.py", "consume_events"]
+    environment:
+      DATABASE_URL: ${NOTIFICATIONS_DATABASE_URL}
+      RABBITMQ_URL: amqp://${RABBITMQ_USER:-guest}:${RABBITMQ_PASS:-guest}@rabbitmq:5672/
+      EMAIL_BACKEND: ${EMAIL_BACKEND:-django.core.mail.backends.console.EmailBackend}
+      EMAIL_HOST: ${EMAIL_HOST:-}
+      EMAIL_PORT: ${EMAIL_PORT:-587}
+      EMAIL_HOST_USER: ${EMAIL_HOST_USER:-}
+      EMAIL_HOST_PASSWORD: ${EMAIL_HOST_PASSWORD:-}
+      EMAIL_USE_TLS: ${EMAIL_USE_TLS:-True}
+      DEFAULT_FROM_EMAIL: ${DEFAULT_FROM_EMAIL:-Espacios UFPS <no-reply@ufps.edu.co>}
+      REMINDER_HOURS_BEFORE: ${REMINDER_HOURS_BEFORE:-1}
+      FRONTEND_URL: ${FRONTEND_URL:-http://localhost:3000}
+    depends_on:
+      - rabbitmq
+      - notifications
+    restart: unless-stopped
+    networks:
+      - classrooms
+
+  # ── Reports microservice ─────────────────────────────────────────────────
+  reports:
+    build:
+      context: ./microservices/reports
+    expose:
+      - "8000"
+    ports:
+      - "8084:8000"
+    environment:
+      DJANGO_ALLOWED_HOSTS: localhost,127.0.0.1,reports,gateway
+      DATABASE_URL: ${REPORTS_DATABASE_URL}
+      JWT_SECRET_KEY: ${JWT_SECRET_KEY:-dev-jwt-secret-change-in-production}
+      RABBITMQ_URL: amqp://${RABBITMQ_USER:-guest}:${RABBITMQ_PASS:-guest}@rabbitmq:5672/
+    depends_on:
+      - rabbitmq
+    networks:
+      - classrooms
+
+  reports-worker:
+    build:
+      context: ./microservices/reports
+    command: ["python", "manage.py", "consume_events"]
+    environment:
+      DATABASE_URL: ${REPORTS_DATABASE_URL}
+      RABBITMQ_URL: amqp://${RABBITMQ_USER:-guest}:${RABBITMQ_PASS:-guest}@rabbitmq:5672/
+    depends_on:
+      - rabbitmq
+      - reports
+    restart: unless-stopped
     networks:
       - classrooms
 

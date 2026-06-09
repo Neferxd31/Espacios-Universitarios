@@ -124,6 +124,16 @@ JWT_REFRESH_TOKEN_EXPIRE_DAYS = int(os.environ.get('JWT_REFRESH_TOKEN_EXPIRE_DAY
 SPACES_SERVICE_URL = os.environ.get('SPACES_SERVICE_URL', 'http://spaces:8000')
 
 # ---------------------------------------------------------------------------
+# RabbitMQ — para publicar PasswordResetRequested (HU-4)
+# ---------------------------------------------------------------------------
+RABBITMQ_URL = os.environ.get('RABBITMQ_URL', '')
+
+# ---------------------------------------------------------------------------
+# URL pública del frontend (para incluir en links de correo)
+# ---------------------------------------------------------------------------
+FRONTEND_URL = os.environ.get('FRONTEND_URL', 'http://localhost:3000')
+
+# ---------------------------------------------------------------------------
 # DRF
 # ---------------------------------------------------------------------------
 REST_FRAMEWORK = {

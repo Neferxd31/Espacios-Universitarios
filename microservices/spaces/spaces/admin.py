@@ -1,6 +1,6 @@
 from django.contrib import admin
 
-from .models import Area, Space, SpaceOperatingHours
+from .models import Area, Space, SpaceHoliday, SpaceOperatingHours
 
 
 class SpaceOperatingHoursInline(admin.TabularInline):
@@ -35,3 +35,10 @@ class SpaceAdmin(admin.ModelAdmin):
 class SpaceOperatingHoursAdmin(admin.ModelAdmin):
     list_display = ('space', 'day_of_week', 'opens_at', 'closes_at')
     list_filter = ('day_of_week',)
+
+
+@admin.register(SpaceHoliday)
+class SpaceHolidayAdmin(admin.ModelAdmin):
+    list_display = ('date', 'space', 'label', 'created_at')
+    list_filter = ('date',)
+    search_fields = ('label',)

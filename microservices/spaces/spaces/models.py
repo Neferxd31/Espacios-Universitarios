@@ -82,6 +82,13 @@ class Space(models.Model):
     amenities = models.JSONField(default=dict, blank=True)
     # Roles que pueden reservar este espacio. Lista vacía = todos.
     allowed_roles = models.JSONField(default=list, blank=True)
+    # HU-10 — Si False, las reservas creadas en este espacio se confirman automáticamente.
+    requires_approval = models.BooleanField(
+        default=True,
+        help_text='Si está activado, las reservas quedan pending y requieren aprobación admin.',
+    )
+    # HU-6 — URL pública de imagen del espacio (Unsplash / Cloudinary / etc.)
+    image_url = models.URLField(blank=True, default='', max_length=512)
     status = models.CharField(
         max_length=32,
         choices=Status.choices,
@@ -152,3 +159,38 @@ class SpaceOperatingHours(models.Model):
 
     def __str__(self) -> str:
         return f'{self.space} — {self.get_day_of_week_display()} {self.opens_at}-{self.closes_at}'
+
+
+class SpaceHoliday(models.Model):
+    """
+    HU-19 — Día bloqueado para reservas.
+    Si space es null, aplica a TODOS los espacios (ej: festivo nacional).
+    Si space está seteado, aplica solo a ese espacio.
+    """
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    space = models.ForeignKey(
+        Space,
+        on_delete=models.CASCADE,
+        related_name='holidays',
+        null=True,
+        blank=True,
+        help_text='Si es null, el bloqueo aplica a todos los espacios.',
+    )
+    date = models.DateField(db_index=True)
+    label = models.CharField(max_length=128, blank=True, default='')
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = 'space_holidays'
+        ordering = ['date']
+        constraints = [
+            models.UniqueConstraint(
+                fields=['space', 'date'],
+                name='space_holidays_unique_per_space',
+            ),
+        ]
+
+    def __str__(self) -> str:
+        scope = self.space or 'GLOBAL'
+        return f'{self.date} — {scope} ({self.label})'

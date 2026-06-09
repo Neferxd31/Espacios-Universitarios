@@ -1,6 +1,6 @@
 from rest_framework import serializers
 
-from .models import Area, Space, SpaceOperatingHours
+from .models import Area, Space, SpaceHoliday, SpaceOperatingHours
 
 
 class AreaSerializer(serializers.ModelSerializer):
@@ -33,7 +33,9 @@ class SpaceSerializer(serializers.ModelSerializer):
         fields = (
             'id', 'area', 'code', 'name', 'description', 'floor', 'capacity',
             'space_type', 'has_air_conditioning', 'has_computers', 'has_projector',
-            'has_internet', 'amenities', 'allowed_roles', 'status', 'is_active',
+            'has_internet', 'amenities', 'allowed_roles',
+            'requires_approval', 'image_url',
+            'status', 'is_active',
             'operating_hours', 'created_at', 'updated_at',
         )
         read_only_fields = fields
@@ -48,7 +50,9 @@ class SpaceWriteSerializer(serializers.ModelSerializer):
         fields = (
             'area_id', 'code', 'name', 'description', 'floor', 'capacity',
             'space_type', 'has_air_conditioning', 'has_computers', 'has_projector',
-            'has_internet', 'amenities', 'allowed_roles', 'status', 'is_active',
+            'has_internet', 'amenities', 'allowed_roles',
+            'requires_approval', 'image_url',
+            'status', 'is_active',
         )
 
     def validate_area_id(self, value):
@@ -96,6 +100,30 @@ class AreaWriteSerializer(serializers.ModelSerializer):
             setattr(instance, attr, value)
         instance.save()
         return instance
+
+
+class HolidaySerializer(serializers.ModelSerializer):
+    """HU-19 — Días bloqueados."""
+
+    space_id = serializers.UUIDField(source='space.id', read_only=True, allow_null=True)
+
+    class Meta:
+        model = SpaceHoliday
+        fields = ('id', 'space_id', 'date', 'label', 'created_at')
+        read_only_fields = ('id', 'created_at')
+
+
+class HolidayWriteSerializer(serializers.Serializer):
+    """HU-19 — Crear día bloqueado."""
+
+    space_id = serializers.UUIDField(required=False, allow_null=True)
+    date = serializers.DateField()
+    label = serializers.CharField(max_length=128, required=False, allow_blank=True, default='')
+
+    def validate_space_id(self, value):
+        if value and not Space.objects.filter(pk=value).exists():
+            raise serializers.ValidationError('Espacio no existe.')
+        return value
 
 
 class OperatingHoursWriteSerializer(serializers.Serializer):

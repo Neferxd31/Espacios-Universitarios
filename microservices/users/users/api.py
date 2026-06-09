@@ -33,6 +33,7 @@ from .auth import (
     verify_password,
 )
 from .models import Role, User, UserSession
+from .publisher import publish_user_event
 from .serializers import (
     AdminCreateUserSerializer,
     AdminUpdateUserSerializer,
@@ -266,16 +267,30 @@ class PasswordRecoveryAPIView(APIView):
         # Generar token de recuperación temporal (válido 1 hora)
         recovery_token = generate_access_token(str(user.id))
 
-        # TODO: publicar evento ResetPasswordRequested → Notifications MS (RabbitMQ)
-        # Por ahora, en modo DEBUG se retorna el token para pruebas
-        if settings.DEBUG:
+        # Construir reset link apuntando al frontend
+        frontend_url = getattr(settings, 'FRONTEND_URL', 'http://localhost:3000')
+        reset_link = f'{frontend_url}/reset-password?token={recovery_token}'
+
+        # Publicar evento → notifications MS lo consume y envía el correo (HU-4)
+        published = publish_user_event(
+            'PasswordResetRequested',
+            {
+                'user_id': str(user.id),
+                'user_email': user.email,
+                'first_name': user.first_name,
+                'reset_link': reset_link,
+                'token': recovery_token,
+            },
+        )
+
+        # Modo DEBUG: devolver token para pruebas si el evento no se publicó
+        if settings.DEBUG and not published:
             base_response['debug_reset_token'] = recovery_token
             base_response['debug_note'] = (
-                'Este campo solo aparece en modo DEBUG. '
-                'En producción se enviaría por email.'
+                'RabbitMQ no disponible. Token expuesto solo en DEBUG.'
             )
 
-        logger.info('Recuperación de contraseña solicitada para: %s', email)
+        logger.info('Recuperación de contraseña solicitada para: %s (publicado=%s)', email, published)
 
         return Response(base_response, status=200)
 

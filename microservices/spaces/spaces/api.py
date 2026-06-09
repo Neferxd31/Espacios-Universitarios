@@ -26,10 +26,12 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from .auth import get_token_payload, require_admin
-from .models import Area, Space, SpaceOperatingHours
+from .models import Area, Space, SpaceHoliday, SpaceOperatingHours
 from .serializers import (
     AreaSerializer,
     AreaWriteSerializer,
+    HolidaySerializer,
+    HolidayWriteSerializer,
     OperatingHoursSerializer,
     OperatingHoursWriteSerializer,
     SpaceSerializer,
@@ -204,10 +206,29 @@ class SpaceListCreateAPIView(APIView):
         # Filtrar por rol del usuario — HU-18 categorización
         if not is_admin and payload:
             user_role = payload.get('role', '')
-            filtered = [s for s in qs if not s.allowed_roles or user_role in s.allowed_roles]
-            return Response({'count': len(filtered), 'results': SpaceSerializer(filtered, many=True).data})
+            qs_list = [s for s in qs if not s.allowed_roles or user_role in s.allowed_roles]
+        else:
+            qs_list = list(qs)
 
-        return Response({'count': qs.count(), 'results': SpaceSerializer(qs, many=True).data})
+        # Paginación simple (HU-6)
+        try:
+            page = max(int(request.query_params.get('page', '1')), 1)
+            page_size = min(max(int(request.query_params.get('page_size', '20')), 1), 100)
+        except ValueError:
+            page, page_size = 1, 20
+
+        total = len(qs_list)
+        start = (page - 1) * page_size
+        end = start + page_size
+        items = qs_list[start:end]
+
+        return Response({
+            'count': total,
+            'page': page,
+            'page_size': page_size,
+            'total_pages': (total + page_size - 1) // page_size if page_size else 0,
+            'results': SpaceSerializer(items, many=True).data,
+        })
 
     def post(self, request):
         _, error = require_admin(request)
@@ -241,6 +262,7 @@ class SpaceDetailAPIView(APIView):
         return Response(SpaceSerializer(space).data)
 
     def delete(self, request, pk):
+        """HU-17 — Soft-delete. No se elimina físicamente para preservar historial."""
         _, error = require_admin(request)
         if error:
             return error
@@ -248,7 +270,77 @@ class SpaceDetailAPIView(APIView):
         space.is_active = False
         space.status = 'inactive'
         space.save(update_fields=['is_active', 'status', 'updated_at'])
-        return Response({'detail': 'Espacio desactivado exitosamente.'})
+        return Response({'detail': 'Espacio desactivado (soft-delete) — historial preservado.'})
+
+
+# ---------------------------------------------------------------------------
+# HU-19 — Días bloqueados (festivos)
+# ---------------------------------------------------------------------------
+
+class HolidayListCreateAPIView(APIView):
+    """
+    GET  /api/v1/holidays/                       — listar (publico)
+    GET  /api/v1/holidays/?date=YYYY-MM-DD       — listar de un día
+    GET  /api/v1/holidays/?space_id=<uuid>       — listar de un espacio
+    POST /api/v1/holidays/                       — crear (admin)
+    """
+
+    def get(self, request):
+        qs = SpaceHoliday.objects.all().select_related('space')
+        date_str = request.query_params.get('date', '').strip()
+        space_id = request.query_params.get('space_id', '').strip()
+        if date_str:
+            qs = qs.filter(date=date_str)
+        if space_id:
+            qs = qs.filter(Q(space_id=space_id) | Q(space__isnull=True))
+        return Response(HolidaySerializer(qs, many=True).data)
+
+    def post(self, request):
+        _, error = require_admin(request)
+        if error:
+            return error
+        ser = HolidayWriteSerializer(data=request.data)
+        if not ser.is_valid():
+            return Response({'errors': ser.errors}, status=400)
+        data = ser.validated_data
+        space = Space.objects.get(pk=data['space_id']) if data.get('space_id') else None
+        holiday = SpaceHoliday.objects.create(
+            space=space, date=data['date'], label=data.get('label', ''),
+        )
+        return Response(HolidaySerializer(holiday).data, status=201)
+
+
+class HolidayDetailAPIView(APIView):
+    def delete(self, request, pk):
+        _, error = require_admin(request)
+        if error:
+            return error
+        h = get_object_or_404(SpaceHoliday, pk=pk)
+        h.delete()
+        return Response({'detail': 'Día bloqueado eliminado.'})
+
+
+class HolidayCheckAPIView(APIView):
+    """
+    GET /api/v1/holidays/check/?date=YYYY-MM-DD&space_id=<uuid>
+    Endpoint interno usado por reservations antes de crear una reserva.
+    Devuelve {is_blocked: bool, label: str|null}.
+    """
+
+    def get(self, request):
+        date_str = request.query_params.get('date', '').strip()
+        space_id = request.query_params.get('space_id', '').strip()
+        if not date_str:
+            return Response({'detail': 'Se requiere date.'}, status=400)
+        qs = SpaceHoliday.objects.filter(date=date_str)
+        if space_id:
+            qs = qs.filter(Q(space_id=space_id) | Q(space__isnull=True))
+        else:
+            qs = qs.filter(space__isnull=True)
+        holiday = qs.first()
+        if holiday:
+            return Response({'is_blocked': True, 'label': holiday.label, 'date': date_str})
+        return Response({'is_blocked': False, 'label': None, 'date': date_str})
 
 
 # ---------------------------------------------------------------------------
